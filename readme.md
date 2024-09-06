@@ -1,5 +1,3 @@
-Current readme.md draft:
-
 # Subscription Service on DFINITY's Internet Computer
 
 ** This is Alpha Software and should not be used in production except for exploratory functionality where you are prepared to lose any and all value of accounts interacting with the system**
@@ -18,9 +16,9 @@ This Implementation utilizes Pan Industrial's ICRC79-mo library to implement the
 
 ### Candid
 
-The subscription canister has been deployed to canister xxxxxxxxxxxxxxxxxxxxx
+The subscription canister has been deployed to canister fe5iu-uiaaa-aaaal-ajxea-cai
 
-You can retrieve the candid and service source files from the Internet Computer Dashboard at https://dashboard.internetcomputer.org/canister/xxxxxxxxxxxxxxxxxxxxx
+You can retrieve the candid and service source files from the Internet Computer Dashboard at https://dashboard.internetcomputer.org/canister/fe5iu-uiaaa-aaaal-ajxea-cai
 
 ## Usage
 
@@ -48,9 +46,10 @@ To create a subscription, your application will need to send a request to the `i
 - **Target Account:** Optional alternative destination for funds
 - **Interval:** Frequency of payments (e.g., daily, monthly).
 - **Amount per Interval:** Amount to be paid each interval.
+- **Broker:** Account of a broker that can obtain a fee(not yet implemented)
 - **Base Rate:** (Not yet implemented) Allows the subscription to use a base rate for determining the cost of a subscription at the of the charge. For example: Base Amount of 50, Base Rate of USD, Token Canister of ckBTC will result in a subscription payment of $50 worth of ckBTC.
 
-Subscrption requests are an array of possible subscription items. Items should only show up once in the request.
+Subscription requests are an array of possible subscription items. Items should only show up once in the request.
 
 **Request Structure:**
 ```motoko
@@ -70,7 +69,7 @@ Subscrption requests are an array of possible subscription items. Items should o
       #memo: Blob; //Optional: memo to include with the subscription
       #createAtTime: Nat; //Optional: timestamp for deduplication
       #subaccount: Blob; //Optional: subaccount to use for the subscription
-      #broker:Principal; //Optional: broker to use for the subscription
+      #broker:Account; //Optional: broker to use for the subscription
   };
 ```
 
@@ -198,8 +197,8 @@ This project is licensed under the MIT License. See the LICENSE file for details
 
 ## OVS Default Behavior
 
-This motoko class has a default OVS behavior that sends cycles to the developer to provide funding for maintenance and continued development. In accordance with the OVS specification and ICRC85, this behavior may be overridden by another OVS sharing heuristic or turned off. We encourage all users to implement some form of OVS sharing as it helps us provide quality software and support to the community.
+This motoko class uses libraries that have a default OVS behavior that sends cycles to the developer to provide funding for maintenance and continued development. In accordance with the OVS specification and ICRC85, this behavior may be overridden by another OVS sharing heuristic or turned off. We encourage all users to implement some form of OVS sharing as it helps us provide quality software and support to the community.
 
-Default behavior: 1 XDR per 100 payments processed;
-
-Default Beneficiary: Pan Industrial
+Libraries including OVS:
+ - icrc79-mo
+ - timer-tool
