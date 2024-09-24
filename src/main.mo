@@ -534,7 +534,7 @@ shared (deployer) actor class Subs(initArgs: ?{
 
     let newicrc3 = ICRC3.ICRC3(?icrc3MigrationState_new, Principal.fromActor(this), getICRC3Environment() );
 
-    let oldBuffer = Vector.toArray(icrc3().getState().ledger);
+    let oldBuffer = Vector.toArray(icrc3().get_state().ledger);
 
     D.print("processing blocks old size" # debug_show(oldBuffer.size()));
 
@@ -573,8 +573,8 @@ shared (deployer) actor class Subs(initArgs: ?{
     };
 
     if(bSafety == true){ //should only hit if we find corrupt blocks
-      icrc3().getState().ledger := newicrc3.getState().ledger;
-      icrc3().getState().latest_hash := newicrc3.getState().latest_hash;
+      icrc3().get_state().ledger := newicrc3.get_state().ledger;
+      icrc3().get_state().latest_hash := newicrc3.get_state().latest_hash;
       
     
       let supportedBlocks = Buffer.fromIter<ICRC3.BlockType>(icrc3().supported_block_types().vals());
@@ -615,10 +615,10 @@ shared (deployer) actor class Subs(initArgs: ?{
     
 
   
-      switch( newicrc3.getState().latest_hash){
+      switch( newicrc3.get_state().latest_hash){
         case(null){};
         case(?val){
-          ignore updated_certification(val,  newicrc3.getState().lastIndex);
+          ignore updated_certification(val,  newicrc3.get_state().lastIndex);
         };
       };
 
