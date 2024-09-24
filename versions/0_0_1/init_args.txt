@@ -1,0 +1,7 @@
+(
+  opt record {
+    icrc79InitArgs : opt Args__1;
+    ttInitArgs : opt Args__2;
+    icrc3InitArgs : opt Args;
+  },
+)
