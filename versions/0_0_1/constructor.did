@@ -1,0 +1,466 @@
+type Account = record { owner : principal; subaccount : opt blob };
+type Account__1 = record { owner : principal; subaccount : opt blob };
+type Action = record {
+  aSync : opt nat;
+  actionType : text;
+  params : blob;
+  retries : nat;
+};
+type ActionId = record { id : nat; time : Time };
+type ActionId__1 = record { id : nat; time : Time };
+type ArchivedTransactionResponse = record {
+  args : vec TransactionRange;
+  callback : GetTransactionsFn;
+};
+type Args = opt InitArgs;
+type Args__1 = opt InitArgs__1;
+type Args__2 = opt record {
+  nextCycleActionId : opt nat;
+  maxExecutions : opt nat;
+  nextActionId : nat;
+  lastActionIdReported : opt nat;
+  lastCycleReport : opt nat;
+  initialTimers : vec record { ActionId__1; Action };
+  expectedExecutionTime : Time;
+  lastExecutionTime : Time;
+};
+type Asset = record { class : AssetClass; symbol : text };
+type AssetClass = variant { Cryptocurrency; FiatCurrency };
+type AssetClass__1 = variant { Cryptocurrency; FiatCurrency };
+type Asset__1 = record { class : AssetClass__1; symbol : text };
+type BlockType = record { url : text; block_type : text };
+type BlockType__1 = record { url : text; block_type : text };
+type CancelError = variant {
+  InvalidStatus : SubStatus__1;
+  NotFound;
+  Unauthorized;
+  Other : record { code : nat; message : text };
+};
+type CancelResult = opt variant { Ok : nat; Err : CancelError };
+type CheckRate = record { decimals : nat32; rate : nat64 };
+type CheckRate__1 = record { decimals : nat32; rate : nat64 };
+type ConfirmRequests = record {
+  subscriptionId : nat;
+  checkRate : opt CheckRate__1;
+};
+type ConfirmResult = opt variant { Ok : nat; Err : SubscriptionError };
+type DataCertificate = record { certificate : blob; hash_tree : blob };
+type ExchangeRate = record {
+  metadata : ExchangeRateMetadata;
+  rate : nat64;
+  timestamp : nat64;
+  quote_asset : Asset__1;
+  base_asset : Asset__1;
+};
+type ExchangeRateError = variant {
+  AnonymousPrincipalNotAllowed;
+  CryptoQuoteAssetNotFound;
+  FailedToAcceptCycles;
+  ForexBaseAssetNotFound;
+  CryptoBaseAssetNotFound;
+  StablecoinRateTooFewRates;
+  ForexAssetsNotFound;
+  InconsistentRatesReceived;
+  RateLimited;
+  StablecoinRateZeroRate;
+  Other : record { code : nat32; description : text };
+  ForexInvalidTimestamp;
+  NotEnoughCycles;
+  ForexQuoteAssetNotFound;
+  StablecoinRateNotFound;
+  Pending;
+};
+type ExchangeRateMetadata = record {
+  decimals : nat32;
+  forex_timestamp : opt nat64;
+  quote_asset_num_received_rates : nat64;
+  base_asset_num_received_rates : nat64;
+  base_asset_num_queried_sources : nat64;
+  standard_deviation : nat64;
+  quote_asset_num_queried_sources : nat64;
+};
+type GetArchivesArgs = record { from : opt principal };
+type GetArchivesResult = vec GetArchivesResultItem;
+type GetArchivesResultItem = record {
+  end : nat;
+  canister_id : principal;
+  start : nat;
+};
+type GetBlocksArgs = vec TransactionRange;
+type GetBlocksResult = record {
+  log_length : nat;
+  blocks : vec record { id : nat; block : Value__1 };
+  archived_blocks : vec ArchivedTransactionResponse;
+};
+type GetTransactionsFn = func (vec TransactionRange) -> (
+    GetTransactionsResult,
+  ) query;
+type GetTransactionsResult = record {
+  log_length : nat;
+  blocks : vec record { id : nat; block : Value__1 };
+  archived_blocks : vec ArchivedTransactionResponse;
+};
+type IndexType = variant { Stable; StableTyped; Managed };
+type InitArgs = record {
+  maxRecordsToArchive : nat;
+  archiveIndexType : IndexType;
+  maxArchivePages : nat;
+  settleToRecords : nat;
+  archiveCycles : nat;
+  maxActiveRecords : nat;
+  maxRecordsInArchiveInstance : nat;
+  archiveControllers : opt opt vec principal;
+  supportedBlocks : vec BlockType;
+};
+type InitArgs__1 = record {
+  maxQueries : opt nat;
+  maxUpdates : opt nat;
+  trxWindow : opt nat;
+  defaultTake : opt nat;
+  feeBPS : opt nat;
+  nextSubscriptionId : opt nat;
+  existingSubscriptions : vec SubscriptionStateShared;
+  tokenInfo : opt vec record { record { principal; opt blob }; TokenInfo };
+  nextPaymentId : opt nat;
+  nextNotificationId : opt nat;
+  maxTake : opt nat;
+  publicGoodsAccount : opt Account;
+  minDrift : opt nat;
+  maxMemoSize : opt nat;
+};
+type Interval = variant {
+  Hourly;
+  Interval : nat;
+  Days : nat;
+  Weekly;
+  Weeks : nat;
+  Daily;
+  Monthly;
+  Months : nat;
+  Yearly;
+};
+type Interval__1 = variant {
+  Hourly;
+  Interval : nat;
+  Days : nat;
+  Weekly;
+  Weeks : nat;
+  Daily;
+  Monthly;
+  Months : nat;
+  Yearly;
+};
+type PauseError = variant {
+  InvalidStatus : SubStatus__1;
+  NotFound;
+  Unauthorized;
+  Other : record { code : nat; message : text };
+};
+type PauseRequest = vec PauseRequestItem;
+type PauseRequestItem = record {
+  active : bool;
+  subscriptionId : nat;
+  reason : text;
+};
+type PauseResult = opt variant { Ok : nat; Err : PauseError };
+type PaymentRecord = record {
+  fee : opt nat;
+  result : variant { Ok; Err : record { code : nat; message : text } };
+  feeTransactionId : opt nat;
+  date : nat;
+  rate : opt ExchangeRate;
+  ledgerTransactionId : opt nat;
+  subscriptionId : nat;
+  brokerFee : opt nat;
+  paymentId : nat;
+  amount : nat;
+  brokerTransactionId : opt nat;
+  transactionId : opt nat;
+};
+type PendingPayment = record {
+  nextPaymentAmount : opt nat;
+  subscription : Subscription;
+  nextPaymentDate : opt nat;
+};
+type ServiceNotification = record {
+  "principal" : principal;
+  date : nat;
+  notification : ServiceNotificationType;
+};
+type ServiceNotificationType = variant {
+  SubscriptionPaused : record {
+    "principal" : principal;
+    subscriptionId : nat;
+    reason : text;
+  };
+  ExchangeRateError : record {
+    rate : ExchangeRate;
+    rate_error : opt ExchangeRateError;
+    subscriptionId : nat;
+    reason : opt text;
+  };
+  SubscriptionEnded : record {
+    "principal" : principal;
+    subscriptionId : nat;
+    reason : text;
+  };
+  SubscriptionActivated : record {
+    "principal" : principal;
+    subscriptionId : nat;
+    reason : text;
+  };
+  LedgerError : record {
+    rescheduled : opt nat;
+    error : text;
+    subscriptionId : nat;
+  };
+  AllowanceInsufficient : record {
+    "principal" : principal;
+    subscriptionId : nat;
+  };
+};
+type ServiceSubscriptionFilter = record {
+  status : opt SubStatusFilter;
+  subscriptions : opt vec nat;
+  products : opt vec opt nat;
+};
+type ServiceSubscriptionFilter__1 = record {
+  status : opt SubStatusFilter;
+  subscriptions : opt vec nat;
+  products : opt vec opt nat;
+};
+type SubStatus = variant {
+  Paused : record { nat; principal; text };
+  Active;
+  WillCancel : record { nat; principal; text };
+  Canceled : record { nat; nat; principal; text };
+};
+type SubStatusFilter = variant { Paused; Active; WillCancel; Canceled };
+type SubStatus__1 = variant {
+  Paused : record { nat; principal; text };
+  Active;
+  WillCancel : record { nat; principal; text };
+  Canceled : record { nat; nat; principal; text };
+};
+type Subs = service {
+  add_blocked_service : (principal, bool) -> ();
+  add_token : (principal, opt blob) -> (opt TokenInfo__1);
+  get_token_info : () -> (vec TokenInfo__1) query;
+  icrc10_supported_standards : () -> (
+      vec record { url : text; name : text },
+    ) query;
+  icrc3_get_archives : (GetArchivesArgs) -> (GetArchivesResult) query;
+  icrc3_get_blocks : (GetBlocksArgs) -> (GetBlocksResult) query;
+  icrc3_get_tip_certificate : () -> (opt DataCertificate) query;
+  icrc3_supported_block_types : () -> (vec BlockType__1) query;
+  icrc79_cancel_subscription : (
+      vec record { subscriptionId : nat; reason : text },
+    ) -> (vec CancelResult);
+  icrc79_cancel_subscription_0_0_1 : (
+      vec record { subscriptionId : nat; reason : text },
+    ) -> (vec CancelResult);
+  icrc79_confirm_subscription : (vec ConfirmRequests) -> (vec ConfirmResult);
+  icrc79_confirm_subscription_0_0_1 : (vec ConfirmRequests) -> (
+      vec ConfirmResult,
+    );
+  icrc79_default_take_value : () -> (nat) query;
+  icrc79_default_take_value_0_0_1 : () -> (nat) query;
+  icrc79_get_payments_pending : (vec nat) -> (vec opt PendingPayment) query;
+  icrc79_get_payments_pending_0_0_1 : (vec nat) -> (
+      vec opt PendingPayment,
+    ) query;
+  icrc79_get_service_notifications : (principal, opt nat, opt nat) -> (
+      vec ServiceNotification,
+    ) query;
+  icrc79_get_service_notifications_0_0_1 : (principal, opt nat, opt nat) -> (
+      vec ServiceNotification,
+    ) query;
+  icrc79_get_service_payments : (
+      principal,
+      opt ServiceSubscriptionFilter__1,
+      opt nat,
+      opt nat,
+    ) -> (vec PaymentRecord) query;
+  icrc79_get_service_payments_0_0_1 : (
+      principal,
+      opt ServiceSubscriptionFilter__1,
+      opt nat,
+      opt nat,
+    ) -> (vec PaymentRecord) query;
+  icrc79_get_service_subscriptions : (
+      principal,
+      opt ServiceSubscriptionFilter,
+      opt nat,
+      opt nat,
+    ) -> (vec Subscription) query;
+  icrc79_get_service_subscriptions_0_0_1 : (
+      principal,
+      opt ServiceSubscriptionFilter,
+      opt nat,
+      opt nat,
+    ) -> (vec Subscription) query;
+  icrc79_get_user_payments : (
+      opt UserSubscriptionsFilter,
+      opt nat,
+      opt nat,
+    ) -> (vec PaymentRecord) query;
+  icrc79_get_user_payments_0_0_1 : (
+      opt UserSubscriptionsFilter,
+      opt nat,
+      opt nat,
+    ) -> (vec PaymentRecord) query;
+  icrc79_get_user_subscriptions : (
+      opt UserSubscriptionsFilter,
+      opt nat,
+      opt nat,
+    ) -> (vec Subscription) query;
+  icrc79_get_user_subscriptions_0_0_1 : (
+      opt UserSubscriptionsFilter,
+      opt nat,
+      opt nat,
+    ) -> (vec Subscription) query;
+  icrc79_max_memo_size : () -> (nat) query;
+  icrc79_max_memo_size_0_0_1 : () -> (nat) query;
+  icrc79_max_query_batch_size : () -> (nat) query;
+  icrc79_max_query_batch_size_0_0_1 : () -> (nat) query;
+  icrc79_max_take_value : () -> (nat) query;
+  icrc79_max_take_value_0_0_1 : () -> (nat) query;
+  icrc79_max_update_batch_size : () -> (nat) query;
+  icrc79_max_update_batch_size_0_0_1 : () -> (nat) query;
+  icrc79_metadata : () -> (vec record { text; Value }) query;
+  icrc79_metadata_0_0_1 : () -> (vec record { text; Value }) query;
+  icrc79_pause_subscription : (PauseRequest) -> (vec PauseResult);
+  icrc79_pause_subscription_0_0_1 : (PauseRequest) -> (vec PauseResult);
+  icrc79_permitted_drift : () -> (nat) query;
+  icrc79_permitted_drift_0_0_1 : () -> (nat) query;
+  icrc79_subscribe : (SubscriptionRequest) -> (SubscriptionResult);
+  icrc79_subscribe_0_0_1 : (SubscriptionRequest) -> (SubscriptionResult);
+  icrc79_tx_window : () -> (nat) query;
+  icrc79_tx_window_0_0_1 : () -> (nat) query;
+  init : () -> ();
+};
+type Subscription = record {
+  serviceCanister : principal;
+  status : SubStatus__1;
+  endDate : opt nat;
+  interval : Interval__1;
+  productId : opt nat;
+  subscriptionId : nat;
+  baseRateAsset : opt Asset__1;
+  account : Account__1;
+  brokerId : opt Account__1;
+  amountPerInterval : nat;
+  targetAccount : opt Account__1;
+  tokenCanister : principal;
+  tokenPointer : opt blob;
+};
+type SubscriptionError = variant {
+  TokenNotFound;
+  InsufficientAllowance : nat;
+  SubscriptionNotFound;
+  Duplicate;
+  FoundActiveSubscription : nat;
+  InsufficientBalance : nat;
+  InvalidDate;
+  Unauthorized;
+  Other : record { code : nat; message : text };
+  InvalidInterval;
+};
+type SubscriptionRequest = vec vec SubscriptionRequestItem;
+type SubscriptionRequestItem = variant {
+  serviceCanister : principal;
+  firstPayment : nat;
+  broker : Account__1;
+  endDate : nat;
+  interval : Interval__1;
+  memo : blob;
+  subaccount : blob;
+  createdAtTime : nat;
+  productId : nat;
+  nowPayment : nat;
+  baseRateAsset : record { Asset__1; CheckRate__1 };
+  amountPerInterval : nat;
+  targetAccount : Account__1;
+  tokenCanister : principal;
+  tokenPointer : TokenPointer;
+};
+type SubscriptionResponse = record {
+  subscriptionId : nat;
+  transactionId : nat;
+};
+type SubscriptionResult = vec SubscriptionResultItem;
+type SubscriptionResultItem = opt variant {
+  Ok : SubscriptionResponse;
+  Err : SubscriptionError;
+};
+type SubscriptionStateShared = record {
+  serviceCanister : principal;
+  status : SubStatus;
+  nextPaymentAmount : opt nat;
+  endDate : opt nat;
+  interval : Interval;
+  history : vec nat;
+  productId : opt nat;
+  subscriptionId : nat;
+  baseRateAsset : opt Asset;
+  checkRate : opt CheckRate;
+  account : Account;
+  brokerId : opt Account;
+  nextTimerId : opt ActionId;
+  nextPayment : opt nat;
+  amountPerInterval : nat;
+  targetAccount : opt Account;
+  tokenCanister : principal;
+  tokenPointer : opt blob;
+};
+type Time = nat;
+type TokenInfo = record {
+  tokenFee : opt nat;
+  standards : vec text;
+  tokenTotalSupply : nat;
+  tokenDecimals : nat8;
+  tokenSymbol : text;
+  tokenCanister : principal;
+  tokenPointer : opt nat;
+};
+type TokenInfo__1 = record {
+  tokenFee : opt nat;
+  standards : vec text;
+  tokenTotalSupply : nat;
+  tokenDecimals : nat8;
+  tokenSymbol : text;
+  tokenCanister : principal;
+  tokenPointer : opt nat;
+};
+type TokenPointer = blob;
+type TransactionRange = record { start : nat; length : nat };
+type UserSubscriptionsFilter = record {
+  status : opt SubStatusFilter;
+  subscriptions : opt vec nat;
+  subaccounts : opt vec opt blob;
+  products : opt vec opt nat;
+  services : opt vec principal;
+};
+type Value = variant {
+  Int : int;
+  Map : vec record { text; Value };
+  Nat : nat;
+  Blob : blob;
+  Text : text;
+  Array : vec Value;
+};
+type Value__1 = variant {
+  Int : int;
+  Map : vec record { text; Value__1 };
+  Nat : nat;
+  Blob : blob;
+  Text : text;
+  Array : vec Value__1;
+};
+service : (
+  opt record {
+    icrc79InitArgs : opt Args__1;
+    ttInitArgs : opt Args__2;
+    icrc3InitArgs : opt Args;
+  },
+) -> Subs

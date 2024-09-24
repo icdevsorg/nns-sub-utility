@@ -1,0 +1,350 @@
+// Version: 1.0.0
+type Account__1 = {owner : Principal; subaccount : ?Blob};
+type Account__2 = Account__1;
+type Action = {aSync : ?Nat; actionType : Text; params : Blob; retries : Nat};
+type ActionId = {id : Nat; time : Time};
+type ActionId__1 = ActionId;
+type Asset = {class_ : AssetClass; symbol : Text};
+type AssetClass = {#Cryptocurrency; #FiatCurrency};
+type AssetClass__1 = {#Cryptocurrency; #FiatCurrency};
+type Asset__1 = {class_ : AssetClass__1; symbol : Text};
+type BTree<K, V> = {order : Nat; var root : Node<K, V>; var size : Nat};
+type BTree__1<K, V> = BTree<K, V>;
+type BlockType = {block_type : Text; url : Text};
+type Data<K, V> = {var count : Nat; kvs : [var ?(K, V)]};
+type ExchangeRate =
+  {
+    base_asset : Asset;
+    metadata : ExchangeRateMetadata;
+    quote_asset : Asset;
+    rate : Nat64;
+    timestamp : Nat64
+  };
+type ExchangeRateError =
+  {
+    #AnonymousPrincipalNotAllowed;
+    #CryptoBaseAssetNotFound;
+    #CryptoQuoteAssetNotFound;
+    #FailedToAcceptCycles;
+    #ForexAssetsNotFound;
+    #ForexBaseAssetNotFound;
+    #ForexInvalidTimestamp;
+    #ForexQuoteAssetNotFound;
+    #InconsistentRatesReceived;
+    #NotEnoughCycles;
+    #Other : {code : Nat32; description : Text};
+    #Pending;
+    #RateLimited;
+    #StablecoinRateNotFound;
+    #StablecoinRateTooFewRates;
+    #StablecoinRateZeroRate
+  };
+type ExchangeRateMetadata =
+  {
+    base_asset_num_queried_sources : Nat64;
+    base_asset_num_received_rates : Nat64;
+    decimals : Nat32;
+    forex_timestamp : ?Nat64;
+    quote_asset_num_queried_sources : Nat64;
+    quote_asset_num_received_rates : Nat64;
+    standard_deviation : Nat64
+  };
+type ExchangeRateMetadata__1 =
+  {
+    base_asset_num_queried_sources : Nat64;
+    base_asset_num_received_rates : Nat64;
+    decimals : Nat32;
+    forex_timestamp : ?Nat64;
+    quote_asset_num_queried_sources : Nat64;
+    quote_asset_num_received_rates : Nat64;
+    standard_deviation : Nat64
+  };
+type ExchangeRate__1 =
+  {
+    base_asset : Asset__1;
+    metadata : ExchangeRateMetadata__1;
+    quote_asset : Asset__1;
+    rate : Nat64;
+    timestamp : Nat64
+  };
+type ExchangeRate__2 = ExchangeRate__1;
+type GlobalSubscriptionMap = Map__25<Nat, SubscriptionState>;
+type GlobalSubscriptionMap2 = BTree__1<Nat, SubscriptionState__1>;
+type GlobalSubscriptionMap__1 = GlobalSubscriptionMap;
+type Hash__1 = Blob;
+type IndexType = {#Managed; #Stable; #StableTyped};
+type Internal<K, V> = {children : [var ?Node<K, V>]; data : Data<K, V>};
+type Interval = {len : IntervalLength; prefix : Prefix};
+type IntervalLength = Nat;
+type Interval__2 =
+  {
+    #Daily;
+    #Days : Nat;
+    #Hourly;
+    #Interval : Nat;
+    #Monthly;
+    #Months : Nat;
+    #Weekly;
+    #Weeks : Nat;
+    #Yearly
+  };
+type Key = Blob;
+type KnownAssetMap = Set__25<Asset__1>;
+type KnownAssetMap__1 = KnownAssetMap;
+type KnownTokenMap = Map__25<(Principal, ?Blob), TokenInfo>;
+type KnownTokenMap__1 = KnownTokenMap;
+type LabeledTree = {#leaf : Leaf; #subtree : OT};
+type Leaf = {leaf_hash : Hash__1; value : Value__3};
+type Leaf__1<K, V> = {data : Data<K, V>};
+type Map<K, V> = [var ?([var ?K], [var ?V], [var Nat], [var Nat32])];
+type Map__12<K, V> = Map<K, V>;
+type Map__13<K, V> = [var ?([var ?K], [var ?V], [var Nat], [var Nat32])];
+type Map__25<K, V> = Map__13<K, V>;
+type Node<K, V> = {#internal : Internal<K, V>; #leaf : Leaf__1<K, V>};
+type OT = ?T__104;
+type PaymentRecord2 =
+  {
+    account : Account__2;
+    amount : Nat;
+    var brokerFee : ?Nat;
+    var brokerTransactionId : ?Nat;
+    date : Nat;
+    var fee : ?Nat;
+    var feeTransactionId : ?Nat;
+    var ledgerTransactionId : ?Nat;
+    paymentId : Nat;
+    productId : ?Nat;
+    rate : ?ExchangeRate__2;
+    result : {#Err : {code : Nat; message : Text}; #Ok};
+    service : Principal;
+    subscriptionId : Nat;
+    targetAccount : ?Account__2;
+    var transactionId : ?Nat
+  };
+type PaymentRecord__1 =
+  {
+    amount : Nat;
+    var brokerFee : ?Nat;
+    var brokerTransactionId : ?Nat;
+    date : Nat;
+    var fee : ?Nat;
+    var feeTransactionId : ?Nat;
+    var ledgerTransactionId : ?Nat;
+    paymentId : Nat;
+    rate : ?ExchangeRate__1;
+    result : {#Err : {code : Nat; message : Text}; #Ok};
+    subscriptionId : Nat;
+    var transactionId : ?Nat
+  };
+type Prefix = [Nat8];
+type Prefix__1 = [Nat8];
+type ProductSubscriptionMap = Map__25<?Nat, Set__25<Nat>>;
+type ProductSubscriptionMap2 = BTree__1<?Nat, BTree__1<Nat, Bool>>;
+type ServiceNotification =
+  {date : Nat; notification : ServiceNotificationType; principal : Principal};
+type ServiceNotificationType =
+  {
+    #AllowanceInsufficient : {principal : Principal; subscriptionId : Nat};
+    #ExchangeRateError :
+      {
+        rate : ExchangeRate;
+        rate_error : ?ExchangeRateError;
+        reason : ?Text;
+        subscriptionId : Nat
+      };
+    #LedgerError : {error : Text; rescheduled : ?Nat; subscriptionId : Nat};
+    #SubscriptionActivated :
+      {principal : Principal; reason : Text; subscriptionId : Nat};
+    #SubscriptionEnded :
+      {principal : Principal; reason : Text; subscriptionId : Nat};
+    #SubscriptionPaused :
+      {principal : Principal; reason : Text; subscriptionId : Nat}
+  };
+type ServiceSubscriptionMap = Map__25<Principal, ProductSubscriptionMap>;
+type ServiceSubscriptionMap2 = BTree__1<Principal, ProductSubscriptionMap2>;
+type ServiceSubscriptionMap__1 = ServiceSubscriptionMap;
+type Set__13<K> = [var ?([var ?K], [var Nat], [var Nat32])];
+type Set__25<K> = Set__13<K>;
+type State =
+  {
+    archives : Map__12<Principal, TransactionRange>;
+    var bCleaning : Bool;
+    var cleaningTimer : ?Nat;
+    constants :
+      {
+        archiveProperties :
+          {
+            var archiveControllers : ??[Principal];
+            var archiveCycles : Nat;
+            var archiveIndexType : IndexType;
+            var maxActiveRecords : Nat;
+            var maxArchivePages : Nat;
+            var maxRecordsInArchiveInstance : Nat;
+            var maxRecordsToArchive : Nat;
+            var settleToRecords : Nat
+          }
+      };
+    var firstIndex : Nat;
+    var lastIndex : Nat;
+    var latest_hash : ?Blob;
+    var ledger : Vector<Transaction>;
+    ledgerCanister : Principal;
+    supportedBlocks : Vector<BlockType>
+  };
+type State__3 =
+  {
+    actionIdIndex : Map__25<Nat, Time>;
+    var expectedExecutionTime : ?Time;
+    var lastActionIdReported : ?Nat;
+    var lastCycleReport : ?Nat;
+    var lastExecutionTime : Time;
+    var maxExecutionDelay : Nat;
+    var maxExecutions : Nat;
+    var nextActionId : Nat;
+    var nextCycleActionId : ?Nat;
+    var nextTimer : ?TimerId__1;
+    timeTree : TimeTree;
+    var timerLock : ?Time
+  };
+type State__6 =
+  {
+    assetInfo : KnownAssetMap;
+    var defaultTake : Nat;
+    var exchangeRateCanister : Principal;
+    var feeBPS : Nat;
+    var maxMemoSize : Nat;
+    var maxQueries : Nat;
+    var maxTake : Nat;
+    var maxUpdates : Nat;
+    var minDrift : Nat;
+    var nextNotificationId : Nat;
+    var nextPaymentId : Nat;
+    var nextSubscriptionId : Nat;
+    notifications : Map__25<Principal, Map__25<Nat, ServiceNotification>>;
+    payments : Map__25<Nat, PaymentRecord__1>;
+    var publicGoodsAccount : Account__1;
+    recentTrx : Map__25<Blob, Nat>;
+    serviceSubscriptionIndex : ServiceSubscriptionMap;
+    subscriptions : GlobalSubscriptionMap;
+    tokenInfo : KnownTokenMap;
+    var trxWindow : Nat;
+    userSubscriptionIndex : UserSubscriptionIndex
+  };
+type State__7 =
+  {
+    assetInfo : KnownAssetMap__1;
+    var defaultTake : Nat;
+    var exchangeRateCanister : Principal;
+    var feeBPS : Nat;
+    var maxMemoSize : Nat;
+    var maxQueries : Nat;
+    var maxTake : Nat;
+    var maxUpdates : Nat;
+    var minDrift : Nat;
+    var nextNotificationId : Nat;
+    var nextPaymentId : Nat;
+    var nextSubscriptionId : Nat;
+    notifications : Map__25<Principal, Map__25<Nat, ServiceNotification>>;
+    payments : Map__25<Nat, PaymentRecord__1>;
+    payments2 : BTree__1<Nat, PaymentRecord2>;
+    var publicGoodsAccount : Account__2;
+    recentTrx : Map__25<Blob, Nat>;
+    serviceSubscriptionIndex : ServiceSubscriptionMap__1;
+    serviceSubscriptionIndex2 : ServiceSubscriptionMap2;
+    subscriptions : GlobalSubscriptionMap__1;
+    subscriptions2 : GlobalSubscriptionMap2;
+    tokenInfo : KnownTokenMap__1;
+    var trxWindow : Nat;
+    userSubscriptionIndex : UserSubscriptionIndex__1;
+    userSubscriptionIndex2 : UserSubscriptionIndex2
+  };
+type SubAccountSubscriptionMap = Map__25<Blob, ServiceSubscriptionMap>;
+type SubAccountSubscriptionMap2 = BTree__1<Blob, ServiceSubscriptionMap2>;
+type SubStatus__1 =
+  {
+    #Active;
+    #Canceled : (Nat, Nat, Principal, Text);
+    #Paused : (Nat, Principal, Text);
+    #WillCancel : (Nat, Principal, Text)
+  };
+type SubscriptionState =
+  {
+    account : Account__1;
+    amountPerInterval : Nat;
+    baseRateAsset : ?Asset__1;
+    brokerId : ?Account__1;
+    endDate : ?Nat;
+    history : Vector<Nat>;
+    interval : Interval__2;
+    var nextPayment : ?Nat;
+    var nextPaymentAmount : ?Nat;
+    var nextTimerId : ?ActionId__1;
+    productId : ?Nat;
+    serviceCanister : Principal;
+    var status : SubStatus__1;
+    subscriptionId : Nat;
+    targetAccount : ?Account__1;
+    tokenCanister : Principal;
+    tokenPointer : ?Blob
+  };
+type SubscriptionState__1 = SubscriptionState;
+type T__104 =
+  {
+    #fork :
+      {hash : Hash__1; interval : Interval; left : T__104; right : T__104};
+    #prefix :
+      {
+        here : LabeledTree;
+        key : Key;
+        labeled_hash : Hash__1;
+        prefix : Prefix__1;
+        rest : OT;
+        tree_hash : Hash__1
+      }
+  };
+type Time = Nat;
+type TimeTree = BTree__1<ActionId, Action>;
+type TimerId__1 = Nat;
+type TokenInfo =
+  {
+    standards : [Text];
+    tokenCanister : Principal;
+    tokenDecimals : Nat8;
+    tokenFee : ?Nat;
+    tokenPointer : ?Nat;
+    tokenSymbol : Text;
+    tokenTotalSupply : Nat
+  };
+type Transaction = Value;
+type TransactionRange = {length : Nat; start : Nat};
+type Tree = LabeledTree;
+type UserSubscriptionIndex = Map__25<Principal, SubAccountSubscriptionMap>;
+type UserSubscriptionIndex2 = BTree__1<Principal, SubAccountSubscriptionMap2>;
+type UserSubscriptionIndex__1 = UserSubscriptionIndex;
+type Value =
+  {
+    #Array : [Value];
+    #Blob : Blob;
+    #Int : Int;
+    #Map : [(Text, Value)];
+    #Nat : Nat;
+    #Text : Text
+  };
+type Value__3 = Blob;
+type Vector<X> =
+  {var data_blocks : [var [var ?X]]; var i_block : Nat; var i_element : Nat};
+actor {
+  stable var blockMap :
+    [var ?([var ?Principal], [var ?Bool], [var Nat], [var Nat32])];
+  stable var certStore : {var tree : Tree};
+  stable var icrc3MigrationState :
+    {#v0_0_0 : {#data; #id}; #v0_1_0 : {#data : State; #id}};
+  stable var icrc79MigrationState :
+    {
+      #v0_0_0 : {#data; #id};
+      #v0_1_0 : {#data : State__6; #id};
+      #v0_2_0 : {#data : State__7; #id}
+    };
+  stable var ttMigrationState :
+    {#v0_0_0 : {#data; #id}; #v0_1_0 : {#data : State__3; #id}}
+};

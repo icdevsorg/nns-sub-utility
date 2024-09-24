@@ -1,4 +1,5 @@
 import Blob "mo:base/Blob";
+import Buffer "mo:base/Buffer";
 import D "mo:base/Debug";
 import Iter "mo:base/Iter";
 import Text "mo:base/Text";
@@ -15,6 +16,7 @@ import ICRC79MigrationTypes "mo:icrc79-mo/migrations/types";
 import ICRC79Migrations "mo:icrc79-mo/migrations";
 import TT "mo:timer-tool";
 import KnownTokens "mo:icrc79-mo/knownTokens";
+import Vector "mo:vector";
 
 
 import CertTree "mo:cert/CertTree";
@@ -42,7 +44,7 @@ shared (deployer) actor class Subs(initArgs: ?{
 
   icrc79MigrationState := ICRC79Migrations.migrate(
     icrc79MigrationState, 
-    #v0_1_0(#id), 
+    #v0_2_0(#id), 
     switch(do?{initArgs!.icrc79InitArgs!}){
       case(null) {
         ?{
@@ -83,7 +85,7 @@ shared (deployer) actor class Subs(initArgs: ?{
       case(?val) val;
     }, deployer.caller);
 
-  let #v0_1_0(#data(currentICRC79State)) = icrc79MigrationState;
+  let #v0_2_0(#data(currentICRC79State)) = icrc79MigrationState;
   let #v0_1_0(#data(currentICRC3State)) = icrc3MigrationState;
   let #v0_1_0(#data(currentTTState)) = ttMigrationState;
 
@@ -257,7 +259,7 @@ shared (deployer) actor class Subs(initArgs: ?{
 
   public query func icrc79_get_service_subscriptions(service: Principal, filter: ?Service.ServiceSubscriptionFilter, prev: ?Nat, take: ?Nat) : async [Service.Subscription] {
       // Implementation of get service subscriptions logic
-      let result = q_icrc79().get_sevice_subscriptions(service, filter, prev, take);
+      let result = q_icrc79().get_service_subscriptions(service, filter, prev, take);
       result;
   };
 
@@ -275,7 +277,7 @@ shared (deployer) actor class Subs(initArgs: ?{
 
   public query func icrc79_get_service_payments(service: Principal, filter:?ICRC79.ServiceSubscriptionFilter, prev: ?Nat, take: ?Nat) : async [Service.PaymentRecord] {
       // Implementation of get service payments logic
-        let result = q_icrc79().get_sevice_payments(service, filter, prev, take);
+        let result = q_icrc79().get_service_payments(service, filter, prev, take);
       result;
   };
 
@@ -369,7 +371,7 @@ shared (deployer) actor class Subs(initArgs: ?{
 
     public query func icrc79_get_service_subscriptions_0_0_1(service: Principal, filter: ?Service.ServiceSubscriptionFilter, prev: ?Nat, take: ?Nat) : async [Service.Subscription] {
         // Implementation of get service subscriptions logic
-        let result = q_icrc79().get_sevice_subscriptions(service, filter, prev, take);
+        let result = q_icrc79().get_service_subscriptions(service, filter, prev, take);
         result;
     };
 
@@ -387,7 +389,7 @@ shared (deployer) actor class Subs(initArgs: ?{
 
     public query func icrc79_get_service_payments_0_0_1(service: Principal, filter:?ICRC79.ServiceSubscriptionFilter, prev: ?Nat, take: ?Nat) : async [Service.PaymentRecord] {
         // Implementation of get service payments logic
-         let result = q_icrc79().get_sevice_payments(service, filter, prev, take);
+         let result = q_icrc79().get_service_payments(service, filter, prev, take);
         result;
     };
 
@@ -507,6 +509,123 @@ shared (deployer) actor class Subs(initArgs: ?{
     ignore icrc79<system>();
   };
 
+  system func postupgrade() : () {
+    ignore tt<system>();
+    ignore icrc3();
+    ignore icrc79<system>();
+
+    //migrate the icrc3 logs
+    var icrc3MigrationState_new : ICRC3Types.State = #v0_0_0(#data);
+
+    var bSafety = false;
+
+    icrc3MigrationState_new := ICRC3Migrations.migrate(
+      icrc3MigrationState_new, 
+      #v0_1_0(#id), 
+      switch(do?{initArgs!.icrc3InitArgs!}){
+        case(null) {
+          ICRC3Default.defaultConfig(deployer.caller);
+        };
+        case(?val) val;
+      }, 
+      deployer.caller);
+
+    let #v0_1_0(#data(newICRC3State)) = icrc3MigrationState_new;
+
+    let newicrc3 = ICRC3.ICRC3(?icrc3MigrationState_new, Principal.fromActor(this), getICRC3Environment() );
+
+    let oldBuffer = Vector.toArray(icrc3().getState().ledger);
+
+    D.print("processing blocks old size" # debug_show(oldBuffer.size()));
+
+    label proc for(thisBlock in oldBuffer.vals()){
+        let #Map(contents) = thisBlock else continue proc;
+
+        let ?#Map(tx) = ICRC3.helper.get_item_from_map("tx",thisBlock) else{
+          //shouldn't be here
+          continue proc;
+        };
+
+        let newTXBuffer = Buffer.Buffer<(Text, ICRC3.Value)>(tx.size());
+
+        for(thisItem in tx.vals()){
+          if(thisItem.0 == "prductId"){
+            bSafety := true;
+            D.print("found product" # debug_show(thisItem.1));
+            newTXBuffer.add("productId", thisItem.1);
+          } else {
+            newTXBuffer.add(thisItem);
+          };
+        };
+
+        let newTop = Buffer.Buffer<(Text, ICRC3.Value)>(contents.size());
+
+        for(thisItem in contents.vals()){
+          if(thisItem.0 == "tx"){
+            
+          } else {
+            newTop.add(thisItem);
+          };
+        };
+
+        
+        ignore newicrc3.add_record<system>(#Map(Buffer.toArray(newTXBuffer)),?#Map(Buffer.toArray(newTop)));
+    };
+
+    if(bSafety == true){ //should only hit if we find corrupt blocks
+      icrc3().getState().ledger := newicrc3.getState().ledger;
+      icrc3().getState().latest_hash := newicrc3.getState().latest_hash;
+      
+    
+      let supportedBlocks = Buffer.fromIter<ICRC3.BlockType>(icrc3().supported_block_types().vals());
+
+      let blockequal = func(a : {block_type: Text}, b : {block_type: Text}) : Bool {
+        a.block_type == b.block_type;
+      };
+
+      if(Buffer.indexOf<ICRC3.BlockType>({block_type = "79subCreate"; url="";}, supportedBlocks, blockequal) == null){
+        supportedBlocks.add({
+              block_type = "79subCreate"; 
+              url="https://github.com/dfinity/ICRC/tree/main/standards/ICRC-79";
+            });
+      };
+
+      if(Buffer.indexOf<ICRC3.BlockType>({block_type = "79subCancel"; url="";}, supportedBlocks, blockequal) == null){
+        supportedBlocks.add({
+              block_type = "79subCancel"; 
+              url="https://github.com/dfinity/ICRC/tree/main/standards/ICRC-79";
+            });
+      };
+
+      if(Buffer.indexOf<ICRC3.BlockType>({block_type = "79subStatus"; url="";}, supportedBlocks, blockequal) == null){
+        supportedBlocks.add({
+              block_type = "79subStatus"; 
+              url="https://github.com/dfinity/ICRC/tree/main/standards/ICRC-79";
+            });
+      };
+
+      if(Buffer.indexOf<ICRC3.BlockType>({block_type = "79subNote"; url="";}, supportedBlocks, blockequal) == null){
+        supportedBlocks.add({
+              block_type = "79subNote"; 
+              url="https://github.com/dfinity/ICRC/tree/main/standards/ICRC-79";
+            });
+      };
+
+      icrc3().update_supported_blocks(Buffer.toArray(supportedBlocks));
+    
+
+  
+      switch( newicrc3.getState().latest_hash){
+        case(null){};
+        case(?val){
+          ignore updated_certification(val,  newicrc3.getState().lastIndex);
+        };
+      };
+
+    };
+    return;
+  };
+
 
   Timer.setTimer<system>(#nanoseconds(0), func () : async() {
     let selfActor : actor {
@@ -514,5 +633,7 @@ shared (deployer) actor class Subs(initArgs: ?{
     } = actor(Principal.toText(Principal.fromActor(this)));
     await selfActor.init();
   });
+
+  
 
 };
