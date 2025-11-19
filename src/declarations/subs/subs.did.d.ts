@@ -6,10 +6,6 @@ export interface Account {
   'owner' : Principal,
   'subaccount' : [] | [Uint8Array | number[]],
 }
-export interface Account__1 {
-  'owner' : Principal,
-  'subaccount' : [] | [Uint8Array | number[]],
-}
 export interface Action {
   'aSync' : [] | [bigint],
   'actionType' : string,
@@ -17,43 +13,46 @@ export interface Action {
   'retries' : bigint,
 }
 export interface ActionId { 'id' : bigint, 'time' : Time }
-export interface ActionId__1 { 'id' : bigint, 'time' : Time }
 export interface ArchivedTransactionResponse {
   'args' : Array<TransactionRange>,
-  'callback' : GetTransactionsFn,
+  'callback' : [Principal, string],
 }
-export type Args = [] | [InitArgs];
-export type Args__1 = [] | [InitArgs__1];
-export type Args__2 = [] | [
-  {
-    'nextCycleActionId' : [] | [bigint],
-    'maxExecutions' : [] | [bigint],
-    'nextActionId' : bigint,
-    'lastActionIdReported' : [] | [bigint],
-    'lastCycleReport' : [] | [bigint],
-    'initialTimers' : Array<[ActionId__1, Action]>,
-    'expectedExecutionTime' : Time,
-    'lastExecutionTime' : Time,
-  }
-];
+export interface ArgList {
+  'nextCycleActionId' : [] | [bigint],
+  'maxExecutions' : [] | [bigint],
+  'nextActionId' : bigint,
+  'lastActionIdReported' : [] | [bigint],
+  'lastCycleReport' : [] | [bigint],
+  'initialTimers' : Array<[ActionId, Action]>,
+  'expectedExecutionTime' : Time,
+  'lastExecutionTime' : Time,
+}
+export interface Args {
+  'maxRecordsToArchive' : bigint,
+  'archiveIndexType' : IndexType,
+  'maxArchivePages' : bigint,
+  'settleToRecords' : bigint,
+  'archiveCycles' : bigint,
+  'maxActiveRecords' : bigint,
+  'maxRecordsInArchiveInstance' : bigint,
+  'archiveControllers' : [] | [[] | [Array<Principal>]],
+  'supportedBlocks' : Array<BlockType>,
+}
+export type Args__1 = [] | [InitArgs];
+export type Args__2 = [] | [ArgList];
 export interface Asset { 'class' : AssetClass, 'symbol' : string }
 export type AssetClass = { 'Cryptocurrency' : null } |
   { 'FiatCurrency' : null };
-export type AssetClass__1 = { 'Cryptocurrency' : null } |
-  { 'FiatCurrency' : null };
-export interface Asset__1 { 'class' : AssetClass__1, 'symbol' : string }
 export interface BlockType { 'url' : string, 'block_type' : string }
-export interface BlockType__1 { 'url' : string, 'block_type' : string }
-export type CancelError = { 'InvalidStatus' : SubStatus__1 } |
+export type CancelError = { 'InvalidStatus' : SubStatus } |
   { 'NotFound' : null } |
   { 'Unauthorized' : null } |
   { 'Other' : { 'code' : bigint, 'message' : string } };
 export type CancelResult = [] | [{ 'Ok' : bigint } | { 'Err' : CancelError }];
 export interface CheckRate { 'decimals' : number, 'rate' : bigint }
-export interface CheckRate__1 { 'decimals' : number, 'rate' : bigint }
 export interface ConfirmRequests {
   'subscriptionId' : bigint,
-  'checkRate' : [] | [CheckRate__1],
+  'checkRate' : [] | [CheckRate],
 }
 export type ConfirmResult = [] | [
   { 'Ok' : bigint } |
@@ -67,8 +66,8 @@ export interface ExchangeRate {
   'metadata' : ExchangeRateMetadata,
   'rate' : bigint,
   'timestamp' : bigint,
-  'quote_asset' : Asset__1,
-  'base_asset' : Asset__1,
+  'quote_asset' : Asset,
+  'base_asset' : Asset,
 }
 export type ExchangeRateError = { 'AnonymousPrincipalNotAllowed' : null } |
   { 'CryptoQuoteAssetNotFound' : null } |
@@ -121,17 +120,6 @@ export type IndexType = { 'Stable' : null } |
   { 'StableTyped' : null } |
   { 'Managed' : null };
 export interface InitArgs {
-  'maxRecordsToArchive' : bigint,
-  'archiveIndexType' : IndexType,
-  'maxArchivePages' : bigint,
-  'settleToRecords' : bigint,
-  'archiveCycles' : bigint,
-  'maxActiveRecords' : bigint,
-  'maxRecordsInArchiveInstance' : bigint,
-  'archiveControllers' : [] | [[] | [Array<Principal>]],
-  'supportedBlocks' : Array<BlockType>,
-}
-export interface InitArgs__1 {
   'maxQueries' : [] | [bigint],
   'maxUpdates' : [] | [bigint],
   'trxWindow' : [] | [bigint],
@@ -158,16 +146,7 @@ export type Interval = { 'Hourly' : null } |
   { 'Monthly' : null } |
   { 'Months' : bigint } |
   { 'Yearly' : null };
-export type Interval__1 = { 'Hourly' : null } |
-  { 'Interval' : bigint } |
-  { 'Days' : bigint } |
-  { 'Weekly' : null } |
-  { 'Weeks' : bigint } |
-  { 'Daily' : null } |
-  { 'Monthly' : null } |
-  { 'Months' : bigint } |
-  { 'Yearly' : null };
-export type PauseError = { 'InvalidStatus' : SubStatus__1 } |
+export type PauseError = { 'InvalidStatus' : SubStatus } |
   { 'NotFound' : null } |
   { 'Unauthorized' : null } |
   { 'Other' : { 'code' : bigint, 'message' : string } };
@@ -180,16 +159,20 @@ export interface PauseRequestItem {
 export type PauseResult = [] | [{ 'Ok' : bigint } | { 'Err' : PauseError }];
 export interface PaymentRecord {
   'fee' : [] | [bigint],
+  'service' : Principal,
   'result' : { 'Ok' : null } |
     { 'Err' : { 'code' : bigint, 'message' : string } },
   'feeTransactionId' : [] | [bigint],
   'date' : bigint,
   'rate' : [] | [ExchangeRate],
+  'productId' : [] | [bigint],
   'ledgerTransactionId' : [] | [bigint],
   'subscriptionId' : bigint,
   'brokerFee' : [] | [bigint],
+  'account' : Account,
   'paymentId' : bigint,
   'amount' : bigint,
+  'targetAccount' : [] | [Account],
   'brokerTransactionId' : [] | [bigint],
   'transactionId' : [] | [bigint],
 }
@@ -250,11 +233,6 @@ export interface ServiceSubscriptionFilter {
   'subscriptions' : [] | [Array<bigint>],
   'products' : [] | [Array<[] | [bigint]>],
 }
-export interface ServiceSubscriptionFilter__1 {
-  'status' : [] | [SubStatusFilter],
-  'subscriptions' : [] | [Array<bigint>],
-  'products' : [] | [Array<[] | [bigint]>],
-}
 export type SubStatus = { 'Paused' : [bigint, Principal, string] } |
   { 'Active' : null } |
   { 'WillCancel' : [bigint, Principal, string] } |
@@ -263,17 +241,13 @@ export type SubStatusFilter = { 'Paused' : null } |
   { 'Active' : null } |
   { 'WillCancel' : null } |
   { 'Canceled' : null };
-export type SubStatus__1 = { 'Paused' : [bigint, Principal, string] } |
-  { 'Active' : null } |
-  { 'WillCancel' : [bigint, Principal, string] } |
-  { 'Canceled' : [bigint, bigint, Principal, string] };
 export interface Subs {
   'add_blocked_service' : ActorMethod<[Principal, boolean], undefined>,
   'add_token' : ActorMethod<
     [Principal, [] | [Uint8Array | number[]]],
-    [] | [TokenInfo__1]
+    [] | [TokenInfo]
   >,
-  'get_token_info' : ActorMethod<[], Array<TokenInfo__1>>,
+  'get_token_info' : ActorMethod<[], Array<TokenInfo>>,
   'icrc10_supported_standards' : ActorMethod<
     [],
     Array<{ 'url' : string, 'name' : string }>
@@ -281,7 +255,7 @@ export interface Subs {
   'icrc3_get_archives' : ActorMethod<[GetArchivesArgs], GetArchivesResult>,
   'icrc3_get_blocks' : ActorMethod<[GetBlocksArgs], GetBlocksResult>,
   'icrc3_get_tip_certificate' : ActorMethod<[], [] | [DataCertificate]>,
-  'icrc3_supported_block_types' : ActorMethod<[], Array<BlockType__1>>,
+  'icrc3_supported_block_types' : ActorMethod<[], Array<BlockType>>,
   'icrc79_cancel_subscription' : ActorMethod<
     [Array<{ 'subscriptionId' : bigint, 'reason' : string }>],
     Array<CancelResult>
@@ -317,21 +291,11 @@ export interface Subs {
     Array<ServiceNotification>
   >,
   'icrc79_get_service_payments' : ActorMethod<
-    [
-      Principal,
-      [] | [ServiceSubscriptionFilter__1],
-      [] | [bigint],
-      [] | [bigint],
-    ],
+    [Principal, [] | [ServiceSubscriptionFilter], [] | [bigint], [] | [bigint]],
     Array<PaymentRecord>
   >,
   'icrc79_get_service_payments_0_0_1' : ActorMethod<
-    [
-      Principal,
-      [] | [ServiceSubscriptionFilter__1],
-      [] | [bigint],
-      [] | [bigint],
-    ],
+    [Principal, [] | [ServiceSubscriptionFilter], [] | [bigint], [] | [bigint]],
     Array<PaymentRecord>
   >,
   'icrc79_get_service_subscriptions' : ActorMethod<
@@ -382,20 +346,19 @@ export interface Subs {
   >,
   'icrc79_tx_window' : ActorMethod<[], bigint>,
   'icrc79_tx_window_0_0_1' : ActorMethod<[], bigint>,
-  'init' : ActorMethod<[], undefined>,
 }
 export interface Subscription {
   'serviceCanister' : Principal,
-  'status' : SubStatus__1,
+  'status' : SubStatus,
   'endDate' : [] | [bigint],
-  'interval' : Interval__1,
+  'interval' : Interval,
   'productId' : [] | [bigint],
   'subscriptionId' : bigint,
-  'baseRateAsset' : [] | [Asset__1],
-  'account' : Account__1,
-  'brokerId' : [] | [Account__1],
+  'baseRateAsset' : [] | [Asset],
+  'account' : Account,
+  'brokerId' : [] | [Account],
   'amountPerInterval' : bigint,
-  'targetAccount' : [] | [Account__1],
+  'targetAccount' : [] | [Account],
   'tokenCanister' : Principal,
   'tokenPointer' : [] | [Uint8Array | number[]],
 }
@@ -412,17 +375,17 @@ export type SubscriptionError = { 'TokenNotFound' : null } |
 export type SubscriptionRequest = Array<Array<SubscriptionRequestItem>>;
 export type SubscriptionRequestItem = { 'serviceCanister' : Principal } |
   { 'firstPayment' : bigint } |
-  { 'broker' : Account__1 } |
+  { 'broker' : Account } |
   { 'endDate' : bigint } |
-  { 'interval' : Interval__1 } |
+  { 'interval' : Interval } |
   { 'memo' : Uint8Array | number[] } |
   { 'subaccount' : Uint8Array | number[] } |
   { 'createdAtTime' : bigint } |
   { 'productId' : bigint } |
   { 'nowPayment' : bigint } |
-  { 'baseRateAsset' : [Asset__1, CheckRate__1] } |
+  { 'baseRateAsset' : [Asset, CheckRate] } |
   { 'amountPerInterval' : bigint } |
-  { 'targetAccount' : Account__1 } |
+  { 'targetAccount' : Account } |
   { 'tokenCanister' : Principal } |
   { 'tokenPointer' : TokenPointer };
 export interface SubscriptionResponse {
@@ -440,6 +403,8 @@ export interface SubscriptionStateShared {
   'nextPaymentAmount' : [] | [bigint],
   'endDate' : [] | [bigint],
   'interval' : Interval,
+  'memo' : [] | [Uint8Array | number[]],
+  'createdAt' : [] | [bigint],
   'history' : Array<bigint>,
   'productId' : [] | [bigint],
   'subscriptionId' : bigint,
@@ -456,15 +421,6 @@ export interface SubscriptionStateShared {
 }
 export type Time = bigint;
 export interface TokenInfo {
-  'tokenFee' : [] | [bigint],
-  'standards' : Array<string>,
-  'tokenTotalSupply' : bigint,
-  'tokenDecimals' : number,
-  'tokenSymbol' : string,
-  'tokenCanister' : Principal,
-  'tokenPointer' : [] | [bigint],
-}
-export interface TokenInfo__1 {
   'tokenFee' : [] | [bigint],
   'standards' : Array<string>,
   'tokenTotalSupply' : bigint,

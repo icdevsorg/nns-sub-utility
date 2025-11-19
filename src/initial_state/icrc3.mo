@@ -2,11 +2,11 @@ import ICRC3 "mo:icrc3-mo";
 import Buffer "mo:base/Buffer";
 
 module{
-  public let defaultConfig = func(caller: Principal) : ICRC3.InitArgs {
+  public let defaultConfig = func(caller: Principal) : ?ICRC3.InitArgs {
     ?{
           maxActiveRecords = 4000;
           settleToRecords = 2000;
-          maxRecordsInArchiveInstance = 1_000_000;
+          maxRecordsInArchiveInstance = 500_000;
           maxArchivePages  = 62500; //allows up to 993 bytes per record
           archiveIndexType = #Stable;
           maxRecordsToArchive = 10_000;

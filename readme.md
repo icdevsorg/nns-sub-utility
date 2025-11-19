@@ -16,9 +16,9 @@ This Implementation utilizes Pan Industrial's ICRC79-mo library to implement the
 
 ### Candid
 
-The subscription canister has been deployed to canister fe5iu-uiaaa-aaaal-ajxea-cai
+The subscription canister has been deployed to canister hl3xq-uiaaa-aaaar-qbxqa-cai
 
-You can retrieve the candid and service source files from the Internet Computer Dashboard at https://dashboard.internetcomputer.org/canister/fe5iu-uiaaa-aaaal-ajxea-cai
+You can retrieve the candid and service source files from the Internet Computer Dashboard at https://dashboard.internetcomputer.org/canister/hl3xq-uiaaa-aaaar-qbxqa-cai
 
 ## Usage
 
@@ -189,7 +189,7 @@ Future implementations will implement the ICRC-79 concept of a broker. For subsc
 
 ## Canister Controllers.
 
-The canister is currently controlled by the NNS root and my only be upgrade by a NNS Vote.  Upon the finalization of ICRC-79, ICRC-80, and ICRC-72 the canister control will be handed to the NNS for cases when emergency upgrades are required.
+The canister is currently controlled by ICDevs under both Alpha oversight and ICRC-137 NNS governance.  Any upgrade may be vetoed by NNS Vote.
 
 ## License
 
