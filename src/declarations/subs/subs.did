@@ -214,6 +214,10 @@ type Subs =
    icrc79_pause_subscription_0_0_1: (req: PauseRequest) -> (vec PauseResult);
    icrc79_permitted_drift: () -> (nat) query;
    icrc79_permitted_drift_0_0_1: () -> (nat) query;
+   icrc79_service_daily_revenue: ("service": principal, productId: opt nat,
+    startDate: nat, endDate: nat) -> (vec DailyRevenueEntry) query;
+   icrc79_service_leaderboard: (prev: opt nat, take: opt nat) ->
+    (vec LeaderboardEntry) query;
    icrc79_subscribe: (req: SubscriptionRequest) -> (SubscriptionResult);
    icrc79_subscribe_0_0_1: (req: SubscriptionRequest) -> (SubscriptionResult);
    icrc79_tx_window: () -> (nat) query;
@@ -350,6 +354,12 @@ type PauseError =
           };
    Unauthorized;
  };
+type LeaderboardEntry = 
+ record {
+   activeSubscriptions: nat;
+   "service": principal;
+   totalRevenue: nat;
+ };
 type Interval = 
  variant {
    Daily;
@@ -464,6 +474,11 @@ type DataCertificate =
  record {
    certificate: blob;
    hash_tree: blob;
+ };
+type DailyRevenueEntry = 
+ record {
+   amount: nat;
+   dayKey: nat;
  };
 type ConfirmResult = 
  opt variant {

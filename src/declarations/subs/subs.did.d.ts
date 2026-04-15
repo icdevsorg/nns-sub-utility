@@ -58,6 +58,7 @@ export type ConfirmResult = [] | [
   { 'Ok' : bigint } |
     { 'Err' : SubscriptionError }
 ];
+export interface DailyRevenueEntry { 'dayKey' : bigint, 'amount' : bigint }
 export interface DataCertificate {
   'certificate' : Uint8Array | number[],
   'hash_tree' : Uint8Array | number[],
@@ -146,6 +147,11 @@ export type Interval = { 'Hourly' : null } |
   { 'Monthly' : null } |
   { 'Months' : bigint } |
   { 'Yearly' : null };
+export interface LeaderboardEntry {
+  'service' : Principal,
+  'totalRevenue' : bigint,
+  'activeSubscriptions' : bigint,
+}
 export type PauseError = { 'InvalidStatus' : SubStatus } |
   { 'NotFound' : null } |
   { 'Unauthorized' : null } |
@@ -339,6 +345,14 @@ export interface Subs {
   >,
   'icrc79_permitted_drift' : ActorMethod<[], bigint>,
   'icrc79_permitted_drift_0_0_1' : ActorMethod<[], bigint>,
+  'icrc79_service_daily_revenue' : ActorMethod<
+    [Principal, [] | [bigint], bigint, bigint],
+    Array<DailyRevenueEntry>
+  >,
+  'icrc79_service_leaderboard' : ActorMethod<
+    [[] | [bigint], [] | [bigint]],
+    Array<LeaderboardEntry>
+  >,
   'icrc79_subscribe' : ActorMethod<[SubscriptionRequest], SubscriptionResult>,
   'icrc79_subscribe_0_0_1' : ActorMethod<
     [SubscriptionRequest],

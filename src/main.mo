@@ -1,21 +1,27 @@
+import Array "mo:base/Array";
 import Blob "mo:base/Blob";
 import Buffer "mo:base/Buffer";
 import D "mo:base/Debug";
+import Int "mo:base/Int";
 import Iter "mo:base/Iter";
+import Nat "mo:base/Nat";
+import Order "mo:base/Order";
 import Text "mo:base/Text";
+import Time "mo:base/Time";
 import Timer "mo:base/Timer";
 import Principal "mo:base/Principal";
+import BTree "mo:stableheapbtreemap/BTree";
 import ICRC3 "mo:icrc3-mo";
 import ICRC3Migrations "mo:icrc3-mo/migrations";
 import ICRC3Types "mo:icrc3-mo/migrations/types";
 import ICRC3Default "initial_state/icrc3";
 
 import Service "mo:icrc79-mo/Service";
-import ICRC79 "../../../../PanIndustrial/code/icrc79.mo/src/"; //"mo:icrc79-mo/";
-import ICRC79MigrationTypes "../../../../PanIndustrial/code/icrc79.mo/src/migrations/types"; //"mo:icrc79-mo/migrations/types";
-import ICRC79Migrations ="../../../../PanIndustrial/code/icrc79.mo/src/migrations"; //"mo:icrc79-mo/migrations";
+import ICRC79 "mo:icrc79-mo/";
+import ICRC79MigrationTypes "mo:icrc79-mo/migrations/types";
+import ICRC79Migrations = "mo:icrc79-mo/migrations";
 import TT "mo:timer-tool";
-import KnownTokens "../../../../PanIndustrial/code/icrc79.mo/src/knownTokens"; //"mo:icrc79-mo/knownTokens";
+import KnownTokens "mo:icrc79-mo/knownTokens";
 import Vector "mo:vector";
 import ClassPlus "mo:class-plus";
 
@@ -42,6 +48,23 @@ shared (deployer) actor class Subs(initArgs: ?{
   stable var tt_migration_state : TT.State = TT.Migration.migration.initialState;
 
   stable var blockMap  = Map.new<Principal, Bool>();
+
+  // ───── Revenue Indexer (Phase 0) ─────
+  // Per-service index: tracks total revenue, active sub count, and daily revenue buckets
+  // Daily revenue is keyed by day number (nanoseconds / NS_PER_DAY) → productId → amount
+  let NS_PER_DAY : Nat = 86_400_000_000_000;
+  let ROLLING_WINDOW_DAYS : Nat = 365;
+
+  type DailyBucket = Map.Map<Nat, Nat>; // dayKey → total amount for that day+product
+  type ProductDailyMap = Map.Map<Nat, DailyBucket>; // productId (0 = no product) → daily buckets
+
+  type ServiceRevenueIndex = {
+    var totalRevenue : Nat;
+    var activeSubscriptions : Nat;
+    dailyRevenue : ProductDailyMap; // productId → (dayKey → amount)
+  };
+
+  stable var revenueIndex = Map.new<Principal, ServiceRevenueIndex>();
 
   stable var certStore : CertTree.Store = CertTree.newStore();
 
@@ -176,6 +199,132 @@ shared (deployer) actor class Subs(initArgs: ?{
 
   stable var icrc79MigrationState : ICRC79MigrationTypes.State = ICRC79.Migration.migration.initialState;
 
+  ///MARK: Revenue Indexer Helpers
+
+  private func getOrCreateServiceIndex(service : Principal) : ServiceRevenueIndex {
+    switch(Map.get<Principal, ServiceRevenueIndex>(revenueIndex, Map.phash, service)) {
+      case(?idx) idx;
+      case(null) {
+        let idx : ServiceRevenueIndex = {
+          var totalRevenue = 0;
+          var activeSubscriptions = 0;
+          dailyRevenue = Map.new<Nat, DailyBucket>();
+        };
+        ignore Map.put<Principal, ServiceRevenueIndex>(revenueIndex, Map.phash, service, idx);
+        idx;
+      };
+    };
+  };
+
+  private func nsToDayKey(ns : Nat) : Nat {
+    ns / NS_PER_DAY;
+  };
+
+  private func pruneOldDays(productMap : ProductDailyMap, currentDayKey : Nat) {
+    let cutoff = if (currentDayKey > ROLLING_WINDOW_DAYS) { currentDayKey - ROLLING_WINDOW_DAYS } else { 0 };
+    for ((productId, dailyBucket) in Map.entries(productMap)) {
+      let toRemove = Buffer.Buffer<Nat>(0);
+      for ((dayKey, _amt) in Map.entries(dailyBucket)) {
+        if (dayKey < cutoff) {
+          toRemove.add(dayKey);
+        };
+      };
+      for (dk in toRemove.vals()) {
+        Map.delete<Nat, Nat>(dailyBucket, Map.nhash, dk);
+      };
+      if (Map.size(dailyBucket) == 0) {
+        Map.delete<Nat, DailyBucket>(productMap, Map.nhash, productId);
+      };
+    };
+  };
+
+  private func recordRevenue(service : Principal, productId : ?Nat, amount : Nat, dateNs : Nat) {
+    let idx = getOrCreateServiceIndex(service);
+    idx.totalRevenue += amount;
+
+    let dayKey = nsToDayKey(dateNs);
+    let prodKey = switch(productId) { case(?p) p; case(null) 0; };
+
+    let dailyBucket = switch(Map.get<Nat, DailyBucket>(idx.dailyRevenue, Map.nhash, prodKey)) {
+      case(?bucket) bucket;
+      case(null) {
+        let bucket = Map.new<Nat, Nat>();
+        ignore Map.put<Nat, DailyBucket>(idx.dailyRevenue, Map.nhash, prodKey, bucket);
+        bucket;
+      };
+    };
+
+    let existing = switch(Map.get<Nat, Nat>(dailyBucket, Map.nhash, dayKey)) {
+      case(?v) v;
+      case(null) 0;
+    };
+    ignore Map.put<Nat, Nat>(dailyBucket, Map.nhash, dayKey, existing + amount);
+
+    pruneOldDays(idx.dailyRevenue, dayKey);
+  };
+
+  private func resetRevenueIndex() {
+    revenueIndex := Map.new<Principal, ServiceRevenueIndex>();
+  };
+
+  private func rebuildRevenueIndex(state : ICRC79MigrationTypes.Current.State) {
+    resetRevenueIndex();
+
+    for ((_, subscription) in BTree.entries(state.subscriptions2)) {
+      switch (subscription.status) {
+        case (#Active) {
+          let idx = getOrCreateServiceIndex(subscription.serviceCanister);
+          idx.activeSubscriptions += 1;
+        };
+        case (_) {};
+      };
+    };
+
+    for ((_, payment) in BTree.entries(state.payments2)) {
+      switch (payment.result) {
+        case (#Ok) {
+          recordRevenue(payment.service, payment.productId, payment.amount, payment.date);
+        };
+        case (#Err(_)) {};
+      };
+    };
+  };
+
+  ///MARK: Revenue Indexer Listeners
+
+  private func onNewPayment<system>(subscription : ICRC79.SubscriptionState, payment : ICRC79.PaymentRecord, trxId : Nat) : () {
+    switch(payment.result) {
+      case(#Ok) {
+        recordRevenue(subscription.serviceCanister, subscription.productId, payment.amount, payment.date);
+      };
+      case(#Err(_)) {};
+    };
+  };
+
+  private func onNewSubscription<system>(subscription : ICRC79.SubscriptionState, trxId : Nat) : () {
+    let idx = getOrCreateServiceIndex(subscription.serviceCanister);
+    idx.activeSubscriptions += 1;
+  };
+
+  private func onCanceledSubscription<system>(subscription : ICRC79.SubscriptionState, trxId : Nat) : () {
+    let idx = getOrCreateServiceIndex(subscription.serviceCanister);
+    if (idx.activeSubscriptions > 0) {
+      idx.activeSubscriptions -= 1;
+    };
+  };
+
+  private func onPauseSubscription<system>(subscription : ICRC79.SubscriptionState, trxId : Nat) : () {
+    let idx = getOrCreateServiceIndex(subscription.serviceCanister);
+    if (idx.activeSubscriptions > 0) {
+      idx.activeSubscriptions -= 1;
+    };
+  };
+
+  private func onActivateSubscription<system>(subscription : ICRC79.SubscriptionState, trxId : Nat) : () {
+    let idx = getOrCreateServiceIndex(subscription.serviceCanister);
+    idx.activeSubscriptions += 1;
+  };
+
   let icrc79 = ICRC79.Init<system>({
     manager = initManager;
     initialState = icrc79MigrationState;
@@ -202,9 +351,13 @@ shared (deployer) actor class Subs(initArgs: ?{
     };
     pullEnvironment = ?(getICRC79Environment);
     onInitialize = ?(func (newClass: ICRC79.ICRC79) : async* () {
-      D.print("Initializing TimerTool");
-      //newClass.initialize<system>();
-      //do any work here necessary for initialization
+      D.print("Initializing ICRC79 + revenue indexer listeners");
+      rebuildRevenueIndex(newClass.getState());
+      newClass.registerNewPaymentListener("revenue_indexer", onNewPayment);
+      newClass.registerNewSubscriptionListener("revenue_indexer", onNewSubscription);
+      newClass.registerCanceledSubscriptionListener("revenue_indexer", onCanceledSubscription);
+      newClass.registerPauseSubscriptionListener("revenue_indexer", onPauseSubscription);
+      newClass.registerActivateSubscriptionListener("revenue_indexer", onActivateSubscription);
     });
     onStorageChange = func(state: ICRC79.State) {
       icrc79MigrationState := state;
@@ -230,6 +383,9 @@ shared (deployer) actor class Subs(initArgs: ?{
       reportBatch = null;
     };
   };
+
+  
+
 
   
 
@@ -343,6 +499,83 @@ shared (deployer) actor class Subs(initArgs: ?{
   public query func icrc79_permitted_drift() : async Nat {
       // Implementation of permitted drift logic
       icrc79().getState().minDrift;//  1 minute
+  };
+
+  ///MARK: Revenue Indexer Query Endpoints
+
+  public type LeaderboardEntry = {
+    service : Principal;
+    totalRevenue : Nat;
+    activeSubscriptions : Nat;
+  };
+
+  public type DailyRevenueEntry = {
+    dayKey : Nat; // day number (nanoseconds / NS_PER_DAY)
+    amount : Nat;
+  };
+
+  public query func icrc79_service_leaderboard(prev : ?Nat, take : ?Nat) : async [LeaderboardEntry] {
+    let maxTake = 100;
+    let requestedTake = switch(take) { case(?t) { if (t > maxTake) maxTake else t }; case(null) 20; };
+    let startFrom = switch(prev) { case(?p) p; case(null) 0; };
+
+    // Collect all service entries
+    let entries = Buffer.Buffer<LeaderboardEntry>(Map.size(revenueIndex));
+    for ((service, idx) in Map.entries(revenueIndex)) {
+      entries.add({
+        service = service;
+        totalRevenue = idx.totalRevenue;
+        activeSubscriptions = idx.activeSubscriptions;
+      });
+    };
+
+    // Sort by totalRevenue descending
+    entries.sort(func(a : LeaderboardEntry, b : LeaderboardEntry) : Order.Order {
+      if (a.totalRevenue > b.totalRevenue) #less  // higher revenue first
+      else if (a.totalRevenue < b.totalRevenue) #greater
+      else Principal.compare(a.service, b.service);
+    });
+
+    // Paginate
+    let arr = Buffer.toArray(entries);
+    let end = if (startFrom + requestedTake > arr.size()) arr.size() else startFrom + requestedTake;
+    if (startFrom >= arr.size()) return [];
+    Array.tabulate<LeaderboardEntry>(end - startFrom, func(i : Nat) : LeaderboardEntry {
+      arr[startFrom + i];
+    });
+  };
+
+  public query func icrc79_service_daily_revenue(
+    service : Principal,
+    productId : ?Nat,
+    startDate : Nat, // nanosecond timestamp
+    endDate : Nat,   // nanosecond timestamp
+  ) : async [DailyRevenueEntry] {
+    let startDay = nsToDayKey(startDate);
+    let endDay = nsToDayKey(endDate);
+
+    switch(Map.get<Principal, ServiceRevenueIndex>(revenueIndex, Map.phash, service)) {
+      case(null) [];
+      case(?idx) {
+        let prodKey = switch(productId) { case(?p) p; case(null) 0; };
+        switch(Map.get<Nat, DailyBucket>(idx.dailyRevenue, Map.nhash, prodKey)) {
+          case(null) [];
+          case(?dailyBucket) {
+            let results = Buffer.Buffer<DailyRevenueEntry>(0);
+            for ((dayKey, amount) in Map.entries(dailyBucket)) {
+              if (dayKey >= startDay and dayKey <= endDay) {
+                results.add({ dayKey = dayKey; amount = amount });
+              };
+            };
+            // Sort by dayKey ascending
+            results.sort(func(a : DailyRevenueEntry, b : DailyRevenueEntry) : Order.Order {
+              Nat.compare(a.dayKey, b.dayKey);
+            });
+            Buffer.toArray(results);
+          };
+        };
+      };
+    };
   };
 
     ///MARK: 0.0.1 Functions

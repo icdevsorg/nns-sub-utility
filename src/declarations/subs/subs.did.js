@@ -350,6 +350,15 @@ export const idlFactory = ({ IDL }) => {
   const PauseResult = IDL.Opt(
     IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : PauseError })
   );
+  const DailyRevenueEntry = IDL.Record({
+    'dayKey' : IDL.Nat,
+    'amount' : IDL.Nat,
+  });
+  const LeaderboardEntry = IDL.Record({
+    'service' : IDL.Principal,
+    'totalRevenue' : IDL.Nat,
+    'activeSubscriptions' : IDL.Nat,
+  });
   const TokenPointer = IDL.Vec(IDL.Nat8);
   const SubscriptionRequestItem = IDL.Variant({
     'serviceCanister' : IDL.Principal,
@@ -550,6 +559,16 @@ export const idlFactory = ({ IDL }) => {
       ),
     'icrc79_permitted_drift' : IDL.Func([], [IDL.Nat], ['query']),
     'icrc79_permitted_drift_0_0_1' : IDL.Func([], [IDL.Nat], ['query']),
+    'icrc79_service_daily_revenue' : IDL.Func(
+        [IDL.Principal, IDL.Opt(IDL.Nat), IDL.Nat, IDL.Nat],
+        [IDL.Vec(DailyRevenueEntry)],
+        ['query'],
+      ),
+    'icrc79_service_leaderboard' : IDL.Func(
+        [IDL.Opt(IDL.Nat), IDL.Opt(IDL.Nat)],
+        [IDL.Vec(LeaderboardEntry)],
+        ['query'],
+      ),
     'icrc79_subscribe' : IDL.Func(
         [SubscriptionRequest],
         [SubscriptionResult],

@@ -37,6 +37,8 @@ export const idlFactory = ({ IDL }) => {
     'nextPaymentAmount' : IDL.Opt(IDL.Nat),
     'endDate' : IDL.Opt(IDL.Nat),
     'interval' : Interval,
+    'memo' : IDL.Opt(IDL.Vec(IDL.Nat8)),
+    'createdAt' : IDL.Opt(IDL.Nat),
     'history' : IDL.Vec(IDL.Nat),
     'productId' : IDL.Opt(IDL.Nat),
     'subscriptionId' : IDL.Nat,
@@ -60,7 +62,7 @@ export const idlFactory = ({ IDL }) => {
     'tokenCanister' : IDL.Principal,
     'tokenPointer' : IDL.Opt(IDL.Nat),
   });
-  const InitArgs__1 = IDL.Record({
+  const InitArgs = IDL.Record({
     'maxQueries' : IDL.Opt(IDL.Nat),
     'maxUpdates' : IDL.Opt(IDL.Nat),
     'trxWindow' : IDL.Opt(IDL.Nat),
@@ -83,33 +85,31 @@ export const idlFactory = ({ IDL }) => {
     'minDrift' : IDL.Opt(IDL.Nat),
     'maxMemoSize' : IDL.Opt(IDL.Nat),
   });
-  const Args__1 = IDL.Opt(InitArgs__1);
-  const ActionId__1 = IDL.Record({ 'id' : IDL.Nat, 'time' : Time });
+  const Args__1 = IDL.Opt(InitArgs);
   const Action = IDL.Record({
     'aSync' : IDL.Opt(IDL.Nat),
     'actionType' : IDL.Text,
     'params' : IDL.Vec(IDL.Nat8),
     'retries' : IDL.Nat,
   });
-  const Args__2 = IDL.Opt(
-    IDL.Record({
-      'nextCycleActionId' : IDL.Opt(IDL.Nat),
-      'maxExecutions' : IDL.Opt(IDL.Nat),
-      'nextActionId' : IDL.Nat,
-      'lastActionIdReported' : IDL.Opt(IDL.Nat),
-      'lastCycleReport' : IDL.Opt(IDL.Nat),
-      'initialTimers' : IDL.Vec(IDL.Tuple(ActionId__1, Action)),
-      'expectedExecutionTime' : Time,
-      'lastExecutionTime' : Time,
-    })
-  );
+  const ArgList = IDL.Record({
+    'nextCycleActionId' : IDL.Opt(IDL.Nat),
+    'maxExecutions' : IDL.Opt(IDL.Nat),
+    'nextActionId' : IDL.Nat,
+    'lastActionIdReported' : IDL.Opt(IDL.Nat),
+    'lastCycleReport' : IDL.Opt(IDL.Nat),
+    'initialTimers' : IDL.Vec(IDL.Tuple(ActionId, Action)),
+    'expectedExecutionTime' : Time,
+    'lastExecutionTime' : Time,
+  });
+  const Args__2 = IDL.Opt(ArgList);
   const IndexType = IDL.Variant({
     'Stable' : IDL.Null,
     'StableTyped' : IDL.Null,
     'Managed' : IDL.Null,
   });
   const BlockType = IDL.Record({ 'url' : IDL.Text, 'block_type' : IDL.Text });
-  const InitArgs = IDL.Record({
+  const Args = IDL.Record({
     'maxRecordsToArchive' : IDL.Nat,
     'archiveIndexType' : IndexType,
     'maxArchivePages' : IDL.Nat,
@@ -119,16 +119,6 @@ export const idlFactory = ({ IDL }) => {
     'maxRecordsInArchiveInstance' : IDL.Nat,
     'archiveControllers' : IDL.Opt(IDL.Opt(IDL.Vec(IDL.Principal))),
     'supportedBlocks' : IDL.Vec(BlockType),
-  });
-  const Args = IDL.Opt(InitArgs);
-  const TokenInfo__1 = IDL.Record({
-    'tokenFee' : IDL.Opt(IDL.Nat),
-    'standards' : IDL.Vec(IDL.Text),
-    'tokenTotalSupply' : IDL.Nat,
-    'tokenDecimals' : IDL.Nat8,
-    'tokenSymbol' : IDL.Text,
-    'tokenCanister' : IDL.Principal,
-    'tokenPointer' : IDL.Opt(IDL.Nat),
   });
   const GetArchivesArgs = IDL.Record({ 'from' : IDL.Opt(IDL.Principal) });
   const GetArchivesResultItem = IDL.Record({
@@ -177,18 +167,8 @@ export const idlFactory = ({ IDL }) => {
     'certificate' : IDL.Vec(IDL.Nat8),
     'hash_tree' : IDL.Vec(IDL.Nat8),
   });
-  const BlockType__1 = IDL.Record({
-    'url' : IDL.Text,
-    'block_type' : IDL.Text,
-  });
-  const SubStatus__1 = IDL.Variant({
-    'Paused' : IDL.Tuple(IDL.Nat, IDL.Principal, IDL.Text),
-    'Active' : IDL.Null,
-    'WillCancel' : IDL.Tuple(IDL.Nat, IDL.Principal, IDL.Text),
-    'Canceled' : IDL.Tuple(IDL.Nat, IDL.Nat, IDL.Principal, IDL.Text),
-  });
   const CancelError = IDL.Variant({
-    'InvalidStatus' : SubStatus__1,
+    'InvalidStatus' : SubStatus,
     'NotFound' : IDL.Null,
     'Unauthorized' : IDL.Null,
     'Other' : IDL.Record({ 'code' : IDL.Nat, 'message' : IDL.Text }),
@@ -196,13 +176,9 @@ export const idlFactory = ({ IDL }) => {
   const CancelResult = IDL.Opt(
     IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : CancelError })
   );
-  const CheckRate__1 = IDL.Record({
-    'decimals' : IDL.Nat32,
-    'rate' : IDL.Nat64,
-  });
   const ConfirmRequests = IDL.Record({
     'subscriptionId' : IDL.Nat,
-    'checkRate' : IDL.Opt(CheckRate__1),
+    'checkRate' : IDL.Opt(CheckRate),
   });
   const SubscriptionError = IDL.Variant({
     'TokenNotFound' : IDL.Null,
@@ -219,38 +195,18 @@ export const idlFactory = ({ IDL }) => {
   const ConfirmResult = IDL.Opt(
     IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : SubscriptionError })
   );
-  const Interval__1 = IDL.Variant({
-    'Hourly' : IDL.Null,
-    'Interval' : IDL.Nat,
-    'Days' : IDL.Nat,
-    'Weekly' : IDL.Null,
-    'Weeks' : IDL.Nat,
-    'Daily' : IDL.Null,
-    'Monthly' : IDL.Null,
-    'Months' : IDL.Nat,
-    'Yearly' : IDL.Null,
-  });
-  const AssetClass__1 = IDL.Variant({
-    'Cryptocurrency' : IDL.Null,
-    'FiatCurrency' : IDL.Null,
-  });
-  const Asset__1 = IDL.Record({ 'class' : AssetClass__1, 'symbol' : IDL.Text });
-  const Account__1 = IDL.Record({
-    'owner' : IDL.Principal,
-    'subaccount' : IDL.Opt(IDL.Vec(IDL.Nat8)),
-  });
   const Subscription = IDL.Record({
     'serviceCanister' : IDL.Principal,
-    'status' : SubStatus__1,
+    'status' : SubStatus,
     'endDate' : IDL.Opt(IDL.Nat),
-    'interval' : Interval__1,
+    'interval' : Interval,
     'productId' : IDL.Opt(IDL.Nat),
     'subscriptionId' : IDL.Nat,
-    'baseRateAsset' : IDL.Opt(Asset__1),
-    'account' : Account__1,
-    'brokerId' : IDL.Opt(Account__1),
+    'baseRateAsset' : IDL.Opt(Asset),
+    'account' : Account,
+    'brokerId' : IDL.Opt(Account),
     'amountPerInterval' : IDL.Nat,
-    'targetAccount' : IDL.Opt(Account__1),
+    'targetAccount' : IDL.Opt(Account),
     'tokenCanister' : IDL.Principal,
     'tokenPointer' : IDL.Opt(IDL.Vec(IDL.Nat8)),
   });
@@ -272,8 +228,8 @@ export const idlFactory = ({ IDL }) => {
     'metadata' : ExchangeRateMetadata,
     'rate' : IDL.Nat64,
     'timestamp' : IDL.Nat64,
-    'quote_asset' : Asset__1,
-    'base_asset' : Asset__1,
+    'quote_asset' : Asset,
+    'base_asset' : Asset,
   });
   const ExchangeRateError = IDL.Variant({
     'AnonymousPrincipalNotAllowed' : IDL.Null,
@@ -336,13 +292,14 @@ export const idlFactory = ({ IDL }) => {
     'WillCancel' : IDL.Null,
     'Canceled' : IDL.Null,
   });
-  const ServiceSubscriptionFilter__1 = IDL.Record({
+  const ServiceSubscriptionFilter = IDL.Record({
     'status' : IDL.Opt(SubStatusFilter),
     'subscriptions' : IDL.Opt(IDL.Vec(IDL.Nat)),
     'products' : IDL.Opt(IDL.Vec(IDL.Opt(IDL.Nat))),
   });
   const PaymentRecord = IDL.Record({
     'fee' : IDL.Opt(IDL.Nat),
+    'service' : IDL.Principal,
     'result' : IDL.Variant({
       'Ok' : IDL.Null,
       'Err' : IDL.Record({ 'code' : IDL.Nat, 'message' : IDL.Text }),
@@ -350,18 +307,16 @@ export const idlFactory = ({ IDL }) => {
     'feeTransactionId' : IDL.Opt(IDL.Nat),
     'date' : IDL.Nat,
     'rate' : IDL.Opt(ExchangeRate),
+    'productId' : IDL.Opt(IDL.Nat),
     'ledgerTransactionId' : IDL.Opt(IDL.Nat),
     'subscriptionId' : IDL.Nat,
     'brokerFee' : IDL.Opt(IDL.Nat),
+    'account' : Account,
     'paymentId' : IDL.Nat,
     'amount' : IDL.Nat,
+    'targetAccount' : IDL.Opt(Account),
     'brokerTransactionId' : IDL.Opt(IDL.Nat),
     'transactionId' : IDL.Opt(IDL.Nat),
-  });
-  const ServiceSubscriptionFilter = IDL.Record({
-    'status' : IDL.Opt(SubStatusFilter),
-    'subscriptions' : IDL.Opt(IDL.Vec(IDL.Nat)),
-    'products' : IDL.Opt(IDL.Vec(IDL.Opt(IDL.Nat))),
   });
   const UserSubscriptionsFilter = IDL.Record({
     'status' : IDL.Opt(SubStatusFilter),
@@ -387,7 +342,7 @@ export const idlFactory = ({ IDL }) => {
   });
   const PauseRequest = IDL.Vec(PauseRequestItem);
   const PauseError = IDL.Variant({
-    'InvalidStatus' : SubStatus__1,
+    'InvalidStatus' : SubStatus,
     'NotFound' : IDL.Null,
     'Unauthorized' : IDL.Null,
     'Other' : IDL.Record({ 'code' : IDL.Nat, 'message' : IDL.Text }),
@@ -395,21 +350,30 @@ export const idlFactory = ({ IDL }) => {
   const PauseResult = IDL.Opt(
     IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : PauseError })
   );
+  const DailyRevenueEntry = IDL.Record({
+    'dayKey' : IDL.Nat,
+    'amount' : IDL.Nat,
+  });
+  const LeaderboardEntry = IDL.Record({
+    'service' : IDL.Principal,
+    'totalRevenue' : IDL.Nat,
+    'activeSubscriptions' : IDL.Nat,
+  });
   const TokenPointer = IDL.Vec(IDL.Nat8);
   const SubscriptionRequestItem = IDL.Variant({
     'serviceCanister' : IDL.Principal,
     'firstPayment' : IDL.Nat,
-    'broker' : Account__1,
+    'broker' : Account,
     'endDate' : IDL.Nat,
-    'interval' : Interval__1,
+    'interval' : Interval,
     'memo' : IDL.Vec(IDL.Nat8),
     'subaccount' : IDL.Vec(IDL.Nat8),
     'createdAtTime' : IDL.Nat,
     'productId' : IDL.Nat,
     'nowPayment' : IDL.Nat,
-    'baseRateAsset' : IDL.Tuple(Asset__1, CheckRate__1),
+    'baseRateAsset' : IDL.Tuple(Asset, CheckRate),
     'amountPerInterval' : IDL.Nat,
-    'targetAccount' : Account__1,
+    'targetAccount' : Account,
     'tokenCanister' : IDL.Principal,
     'tokenPointer' : TokenPointer,
   });
@@ -426,10 +390,10 @@ export const idlFactory = ({ IDL }) => {
     'add_blocked_service' : IDL.Func([IDL.Principal, IDL.Bool], [], []),
     'add_token' : IDL.Func(
         [IDL.Principal, IDL.Opt(IDL.Vec(IDL.Nat8))],
-        [IDL.Opt(TokenInfo__1)],
+        [IDL.Opt(TokenInfo)],
         [],
       ),
-    'get_token_info' : IDL.Func([], [IDL.Vec(TokenInfo__1)], ['query']),
+    'get_token_info' : IDL.Func([], [IDL.Vec(TokenInfo)], ['query']),
     'icrc10_supported_standards' : IDL.Func(
         [],
         [IDL.Vec(IDL.Record({ 'url' : IDL.Text, 'name' : IDL.Text }))],
@@ -452,7 +416,7 @@ export const idlFactory = ({ IDL }) => {
       ),
     'icrc3_supported_block_types' : IDL.Func(
         [],
-        [IDL.Vec(BlockType__1)],
+        [IDL.Vec(BlockType)],
         ['query'],
       ),
     'icrc79_cancel_subscription' : IDL.Func(
@@ -508,7 +472,7 @@ export const idlFactory = ({ IDL }) => {
     'icrc79_get_service_payments' : IDL.Func(
         [
           IDL.Principal,
-          IDL.Opt(ServiceSubscriptionFilter__1),
+          IDL.Opt(ServiceSubscriptionFilter),
           IDL.Opt(IDL.Nat),
           IDL.Opt(IDL.Nat),
         ],
@@ -518,7 +482,7 @@ export const idlFactory = ({ IDL }) => {
     'icrc79_get_service_payments_0_0_1' : IDL.Func(
         [
           IDL.Principal,
-          IDL.Opt(ServiceSubscriptionFilter__1),
+          IDL.Opt(ServiceSubscriptionFilter),
           IDL.Opt(IDL.Nat),
           IDL.Opt(IDL.Nat),
         ],
@@ -595,6 +559,16 @@ export const idlFactory = ({ IDL }) => {
       ),
     'icrc79_permitted_drift' : IDL.Func([], [IDL.Nat], ['query']),
     'icrc79_permitted_drift_0_0_1' : IDL.Func([], [IDL.Nat], ['query']),
+    'icrc79_service_daily_revenue' : IDL.Func(
+        [IDL.Principal, IDL.Opt(IDL.Nat), IDL.Nat, IDL.Nat],
+        [IDL.Vec(DailyRevenueEntry)],
+        ['query'],
+      ),
+    'icrc79_service_leaderboard' : IDL.Func(
+        [IDL.Opt(IDL.Nat), IDL.Opt(IDL.Nat)],
+        [IDL.Vec(LeaderboardEntry)],
+        ['query'],
+      ),
     'icrc79_subscribe' : IDL.Func(
         [SubscriptionRequest],
         [SubscriptionResult],
@@ -607,7 +581,6 @@ export const idlFactory = ({ IDL }) => {
       ),
     'icrc79_tx_window' : IDL.Func([], [IDL.Nat], ['query']),
     'icrc79_tx_window_0_0_1' : IDL.Func([], [IDL.Nat], ['query']),
-    'init' : IDL.Func([], [], []),
   });
   return Subs;
 };
@@ -647,6 +620,8 @@ export const init = ({ IDL }) => {
     'nextPaymentAmount' : IDL.Opt(IDL.Nat),
     'endDate' : IDL.Opt(IDL.Nat),
     'interval' : Interval,
+    'memo' : IDL.Opt(IDL.Vec(IDL.Nat8)),
+    'createdAt' : IDL.Opt(IDL.Nat),
     'history' : IDL.Vec(IDL.Nat),
     'productId' : IDL.Opt(IDL.Nat),
     'subscriptionId' : IDL.Nat,
@@ -670,7 +645,7 @@ export const init = ({ IDL }) => {
     'tokenCanister' : IDL.Principal,
     'tokenPointer' : IDL.Opt(IDL.Nat),
   });
-  const InitArgs__1 = IDL.Record({
+  const InitArgs = IDL.Record({
     'maxQueries' : IDL.Opt(IDL.Nat),
     'maxUpdates' : IDL.Opt(IDL.Nat),
     'trxWindow' : IDL.Opt(IDL.Nat),
@@ -693,33 +668,31 @@ export const init = ({ IDL }) => {
     'minDrift' : IDL.Opt(IDL.Nat),
     'maxMemoSize' : IDL.Opt(IDL.Nat),
   });
-  const Args__1 = IDL.Opt(InitArgs__1);
-  const ActionId__1 = IDL.Record({ 'id' : IDL.Nat, 'time' : Time });
+  const Args__1 = IDL.Opt(InitArgs);
   const Action = IDL.Record({
     'aSync' : IDL.Opt(IDL.Nat),
     'actionType' : IDL.Text,
     'params' : IDL.Vec(IDL.Nat8),
     'retries' : IDL.Nat,
   });
-  const Args__2 = IDL.Opt(
-    IDL.Record({
-      'nextCycleActionId' : IDL.Opt(IDL.Nat),
-      'maxExecutions' : IDL.Opt(IDL.Nat),
-      'nextActionId' : IDL.Nat,
-      'lastActionIdReported' : IDL.Opt(IDL.Nat),
-      'lastCycleReport' : IDL.Opt(IDL.Nat),
-      'initialTimers' : IDL.Vec(IDL.Tuple(ActionId__1, Action)),
-      'expectedExecutionTime' : Time,
-      'lastExecutionTime' : Time,
-    })
-  );
+  const ArgList = IDL.Record({
+    'nextCycleActionId' : IDL.Opt(IDL.Nat),
+    'maxExecutions' : IDL.Opt(IDL.Nat),
+    'nextActionId' : IDL.Nat,
+    'lastActionIdReported' : IDL.Opt(IDL.Nat),
+    'lastCycleReport' : IDL.Opt(IDL.Nat),
+    'initialTimers' : IDL.Vec(IDL.Tuple(ActionId, Action)),
+    'expectedExecutionTime' : Time,
+    'lastExecutionTime' : Time,
+  });
+  const Args__2 = IDL.Opt(ArgList);
   const IndexType = IDL.Variant({
     'Stable' : IDL.Null,
     'StableTyped' : IDL.Null,
     'Managed' : IDL.Null,
   });
   const BlockType = IDL.Record({ 'url' : IDL.Text, 'block_type' : IDL.Text });
-  const InitArgs = IDL.Record({
+  const Args = IDL.Record({
     'maxRecordsToArchive' : IDL.Nat,
     'archiveIndexType' : IndexType,
     'maxArchivePages' : IDL.Nat,
@@ -730,7 +703,6 @@ export const init = ({ IDL }) => {
     'archiveControllers' : IDL.Opt(IDL.Opt(IDL.Vec(IDL.Principal))),
     'supportedBlocks' : IDL.Vec(BlockType),
   });
-  const Args = IDL.Opt(InitArgs);
   return [
     IDL.Opt(
       IDL.Record({
