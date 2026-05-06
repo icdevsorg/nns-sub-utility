@@ -3,6 +3,7 @@ import { Principal } from '@dfinity/principal';
 import type { ServiceSubscriptionFilter, PaymentRecord } from '@declarations/subs/subs.did.d.ts';
 import { getSubsActor } from '../canister/subs';
 import { CONFIG } from '../config';
+import { safeStringify } from '../utils/safeStringify';
 
 export function useServicePayments(
   servicePrincipal: string | undefined,
@@ -10,7 +11,7 @@ export function useServicePayments(
   prev?: bigint,
 ) {
   return useQuery<PaymentRecord[]>({
-    queryKey: ['servicePayments', servicePrincipal, filter, prev?.toString()],
+    queryKey: ['servicePayments', servicePrincipal, safeStringify(filter), prev?.toString()],
     queryFn: async () => {
       if (!servicePrincipal) return [];
       const actor = await getSubsActor();

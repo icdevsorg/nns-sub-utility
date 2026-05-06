@@ -3,6 +3,7 @@ import { Principal } from '@dfinity/principal';
 import type { ServiceSubscriptionFilter, Subscription } from '@declarations/subs/subs.did.d.ts';
 import { getSubsActor } from '../canister/subs';
 import { CONFIG } from '../config';
+import { safeStringify } from '../utils/safeStringify';
 
 export function useServiceSubscriptions(
   servicePrincipal: string | undefined,
@@ -10,7 +11,7 @@ export function useServiceSubscriptions(
   prev?: bigint,
 ) {
   return useQuery<Subscription[]>({
-    queryKey: ['serviceSubscriptions', servicePrincipal, filter, prev?.toString()],
+    queryKey: ['serviceSubscriptions', servicePrincipal, safeStringify(filter), prev?.toString()],
     queryFn: async () => {
       if (!servicePrincipal) return [];
       const actor = await getSubsActor();

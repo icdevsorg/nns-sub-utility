@@ -19,6 +19,7 @@ import { CONFIG } from '../config';
 import { serializeIntervalForDeepLink, type DeepLinkBuilderValues } from '../utils/deepLink';
 import { isValidPrincipal } from '../utils/account';
 import { buildPaymentTokenLabelBySubscriptionId } from '../utils/paymentTokens';
+import { safeStringify } from '../utils/safeStringify';
 import { sortTokenOptions } from '../utils/tokenOptions';
 
 const NS_PER_DAY = 86_400_000_000_000n;
@@ -108,7 +109,7 @@ export function ServiceAdmin() {
   );
 
   const deepLinkBuilderKey = useMemo(
-    () => JSON.stringify(deepLinkInitialValues),
+    () => safeStringify(deepLinkInitialValues),
     [deepLinkInitialValues],
   );
 
