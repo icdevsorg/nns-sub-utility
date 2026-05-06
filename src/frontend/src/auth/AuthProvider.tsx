@@ -21,11 +21,15 @@ const AuthContext = createContext<AuthState | null>(null);
 
 const PLUG_WHITELIST = [CONFIG.SUBS_CANISTER_ID];
 
+const TEST_IDENTITY_ENABLED =
+  import.meta.env.DEV || import.meta.env.VITE_ENABLE_TEST_IDENTITY === 'true';
+
 /**
  * Check for a test identity injected via window.__TEST_IDENTITY__.
- * Used by Playwright E2E tests to bypass Internet Identity.
+ * Only active in development or when explicitly enabled for E2E builds.
  */
 function getTestIdentity(): Ed25519KeyIdentity | null {
+  if (!TEST_IDENTITY_ENABLED) return null;
   try {
     const raw = (window as any).__TEST_IDENTITY__;
     if (raw) {

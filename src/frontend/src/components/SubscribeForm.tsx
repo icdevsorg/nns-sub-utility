@@ -6,10 +6,13 @@ import { useTokenMetadata, type TokenMetadata } from '../hooks/useTokenMetadata'
 import { useAllowance } from '../hooks/useAllowance';
 import { useApproveToken } from '../hooks/useApproveToken';
 import { useSubscribe } from '../hooks/useSubscribe';
+import { useTokenInfo } from '../hooks/useTokenInfo';
 import { TokenDisplay } from './TokenDisplay';
 import { LoadingSpinner } from './LoadingSpinner';
 import { getTokenActor } from '../canister/icrc2';
 import type { DeepLinkParams } from '../hooks/useDeepLinkParams';
+import { isValidAccountText, isValidPrincipal, parseAccountForCandid } from '../utils/account';
+import { sortTokenOptions } from '../utils/tokenOptions';
 
 function useTokenBalance(canisterId: string | undefined, principalText: string | null) {
   const [balance, setBalance] = useState<bigint | null>(null);
@@ -55,6 +58,7 @@ const INTERVAL_OPTIONS: { label: string; value: string }[] = [
   { label: 'Weekly', value: 'Weekly' },
   { label: 'Monthly', value: 'Monthly' },
   { label: 'Yearly', value: 'Yearly' },
+  { label: 'Custom (nanoseconds)', value: 'Interval' },
   { label: 'Custom (days)', value: 'Days' },
   { label: 'Custom (weeks)', value: 'Weeks' },
   { label: 'Custom (months)', value: 'Months' },
@@ -67,6 +71,10 @@ function parseInterval(type: string, customValue: string): Interval | null {
     case 'Weekly': return { Weekly: null };
     case 'Monthly': return { Monthly: null };
     case 'Yearly': return { Yearly: null };
+    case 'Interval': {
+      const n = BigInt(customValue || '0');
+      return n > 0n ? { Interval: n } : null;
+    }
     case 'Days': {
       const n = BigInt(customValue || '0');
       return n > 0n ? { Days: n } : null;
@@ -83,15 +91,6 @@ function parseInterval(type: string, customValue: string): Interval | null {
   }
 }
 
-function isValidPrincipal(text: string): boolean {
-  try {
-    Principal.fromText(text);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 interface SubscribeFormProps {
   defaults: DeepLinkParams;
 }
@@ -100,13 +99,14 @@ export function SubscribeForm({ defaults }: SubscribeFormProps) {
   const { principal } = useAuth();
   const approveMutation = useApproveToken();
   const subscribeMutation = useSubscribe();
+  const { data: supportedTokens } = useTokenInfo();
 
   // Form state
   const [tokenCanister, setTokenCanister] = useState(defaults.token ?? '');
   const [serviceCanister, setServiceCanister] = useState(defaults.service ?? '');
   const [amount, setAmount] = useState(defaults.amount ?? '');
   const [intervalType, setIntervalType] = useState(defaults.interval ?? 'Monthly');
-  const [customIntervalValue, setCustomIntervalValue] = useState('');
+  const [customIntervalValue, setCustomIntervalValue] = useState(defaults.intervalValue ?? '');
   const [productId, setProductId] = useState(defaults.product ?? '');
   const [endDate, setEndDate] = useState(defaults.endDate ?? '');
   const [memo, setMemo] = useState(defaults.memo ?? '');
@@ -119,7 +119,21 @@ export function SubscribeForm({ defaults }: SubscribeFormProps) {
   const [transactionId, setTransactionId] = useState<bigint | null>(null);
   const [tokenMetadataCache, setTokenMetadataCache] = useState<Record<string, TokenMetadata>>({});
 
-  const validTokenCanister = tokenCanister && isValidPrincipal(tokenCanister) ? tokenCanister : undefined;
+  const supportedTokenOptions = sortTokenOptions((supportedTokens ?? []).map((token) => ({
+    value: token.tokenCanister.toText(),
+    label: `${token.tokenSymbol} (${token.tokenCanister.toText()})`,
+  })));
+  const supportedTokenCanisters = new Set(supportedTokenOptions.map((option) => option.value));
+
+  const validTokenCanister = tokenCanister && supportedTokenCanisters.has(tokenCanister)
+    ? tokenCanister
+    : undefined;
+  const validTargetAccount = targetAccount && isValidAccountText(targetAccount)
+    ? parseAccountForCandid(targetAccount)
+    : null;
+  const validBrokerAccount = broker && isValidAccountText(broker)
+    ? parseAccountForCandid(broker)
+    : null;
   const cachedTokenMeta = validTokenCanister ? tokenMetadataCache[validTokenCanister] : undefined;
 
   // Token metadata
@@ -129,6 +143,12 @@ export function SubscribeForm({ defaults }: SubscribeFormProps) {
   });
   const tokenMeta = fetchedTokenMeta ?? cachedTokenMeta ?? null;
   const decimals = tokenMeta?.decimals ?? 8;
+
+  useEffect(() => {
+    if (tokenCanister && supportedTokenOptions.length > 0 && !supportedTokenCanisters.has(tokenCanister)) {
+      setTokenCanister('');
+    }
+  }, [tokenCanister, supportedTokenCanisters, supportedTokenOptions.length]);
 
   useEffect(() => {
     if (!validTokenCanister || !fetchedTokenMeta) {
@@ -174,12 +194,14 @@ export function SubscribeForm({ defaults }: SubscribeFormProps) {
 
   // Validation
   const isFormValid =
-    tokenCanister && isValidPrincipal(tokenCanister) &&
+    !!validTokenCanister &&
     serviceCanister && isValidPrincipal(serviceCanister) &&
     rawAmount > 0n &&
-    parseInterval(intervalType, customIntervalValue) !== null;
+    parseInterval(intervalType, customIntervalValue) !== null &&
+    (!targetAccount || validTargetAccount !== null) &&
+    (!broker || validBrokerAccount !== null);
 
-  const isCustomInterval = ['Days', 'Weeks', 'Months'].includes(intervalType);
+  const isCustomInterval = ['Interval', 'Days', 'Weeks', 'Months'].includes(intervalType);
 
   // Step handlers
   const handleApprove = useCallback(async () => {
@@ -192,9 +214,11 @@ export function SubscribeForm({ defaults }: SubscribeFormProps) {
       });
       if ('Err' in result) {
         const errKey = Object.keys(result.Err)[0];
-        setErrorMsg(`Approval failed: ${errKey}`);
-        setStep('error');
-        return;
+        if (errKey !== 'Duplicate') {
+          setErrorMsg(`Approval failed: ${errKey}`);
+          setStep('error');
+          return;
+        }
       }
       // Refetch allowance after approval
       await refetchAllowance();
@@ -233,11 +257,11 @@ export function SubscribeForm({ defaults }: SubscribeFormProps) {
       if (memo) {
         items.push({ memo: new TextEncoder().encode(memo) });
       }
-      if (targetAccount && isValidPrincipal(targetAccount)) {
-        items.push({ targetAccount: { owner: Principal.fromText(targetAccount), subaccount: [] } });
+      if (validTargetAccount) {
+        items.push({ targetAccount: validTargetAccount });
       }
-      if (broker && isValidPrincipal(broker)) {
-        items.push({ broker: { owner: Principal.fromText(broker), subaccount: [] } });
+      if (validBrokerAccount) {
+        items.push({ broker: validBrokerAccount });
       }
 
       const result = await subscribeMutation.mutateAsync(items);
@@ -410,20 +434,24 @@ export function SubscribeForm({ defaults }: SubscribeFormProps) {
         {/* Token Canister */}
         <div>
           <label className="block text-sm font-medium text-slate-300 mb-1">Token Canister *</label>
-          <input
-            type="text"
+          <select
+            aria-label="Token Canister"
             value={tokenCanister}
             onChange={(e) => setTokenCanister(e.target.value)}
-            placeholder="ryjl3-tyaaa-aaaaa-aaaba-cai"
-            className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-slate-200 placeholder-slate-500 focus:border-emerald-500 focus:outline-none font-mono text-sm"
-          />
+            className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-slate-200 focus:border-emerald-500 focus:outline-none"
+          >
+            <option value="">Select a supported token</option>
+            {supportedTokenOptions.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
           {validTokenCanister && (
             <div className="mt-1 text-sm">
               <TokenDisplay canisterId={validTokenCanister} metadata={tokenMeta} />
             </div>
           )}
-          {tokenCanister && !isValidPrincipal(tokenCanister) && (
-            <p className="mt-1 text-xs text-red-400">Invalid principal</p>
+          {supportedTokenOptions.length === 0 && (
+            <p className="mt-1 text-xs text-amber-400">No supported tokens are currently registered.</p>
           )}
         </div>
 
@@ -432,6 +460,7 @@ export function SubscribeForm({ defaults }: SubscribeFormProps) {
           <label className="block text-sm font-medium text-slate-300 mb-1">Service Canister *</label>
           <input
             type="text"
+            aria-label="Service Canister"
             value={serviceCanister}
             onChange={(e) => setServiceCanister(e.target.value)}
             placeholder="aaaaa-aa"
@@ -449,6 +478,7 @@ export function SubscribeForm({ defaults }: SubscribeFormProps) {
           </label>
           <input
             type="text"
+            aria-label="Amount Per Interval"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             placeholder="1.00"
@@ -463,6 +493,7 @@ export function SubscribeForm({ defaults }: SubscribeFormProps) {
         <div>
           <label className="block text-sm font-medium text-slate-300 mb-1">Interval *</label>
           <select
+            aria-label="Interval"
             value={intervalType}
             onChange={(e) => setIntervalType(e.target.value)}
             className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-slate-200 focus:border-emerald-500 focus:outline-none"
@@ -488,6 +519,7 @@ export function SubscribeForm({ defaults }: SubscribeFormProps) {
           <label className="block text-sm font-medium text-slate-300 mb-1">Product ID <span className="text-slate-500">(optional)</span></label>
           <input
             type="text"
+            aria-label="Product ID"
             value={productId}
             onChange={(e) => setProductId(e.target.value)}
             placeholder="0"
@@ -500,6 +532,7 @@ export function SubscribeForm({ defaults }: SubscribeFormProps) {
           <label className="block text-sm font-medium text-slate-300 mb-1">End Date <span className="text-slate-500">(optional)</span></label>
           <input
             type="date"
+            aria-label="End Date"
             value={endDate}
             onChange={(e) => setEndDate(e.target.value)}
             className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-slate-200 focus:border-emerald-500 focus:outline-none"
@@ -511,6 +544,7 @@ export function SubscribeForm({ defaults }: SubscribeFormProps) {
           <label className="block text-sm font-medium text-slate-300 mb-1">Memo <span className="text-slate-500">(optional)</span></label>
           <input
             type="text"
+            aria-label="Memo"
             value={memo}
             onChange={(e) => setMemo(e.target.value)}
             placeholder="Payment for..."
@@ -523,11 +557,18 @@ export function SubscribeForm({ defaults }: SubscribeFormProps) {
           <label className="block text-sm font-medium text-slate-300 mb-1">Target Account <span className="text-slate-500">(optional, defaults to service)</span></label>
           <input
             type="text"
+            aria-label="Target Account"
             value={targetAccount}
             onChange={(e) => setTargetAccount(e.target.value)}
-            placeholder="Principal"
+            placeholder="principal or principal:64-hex-subaccount"
             className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-slate-200 placeholder-slate-500 focus:border-emerald-500 focus:outline-none font-mono text-sm"
           />
+          <p className="mt-1 text-xs text-slate-500">
+            Accepts either an owner principal or an account string in the form <span className="font-mono">principal:subaccountHex</span>.
+          </p>
+          {targetAccount && !validTargetAccount && (
+            <p className="mt-1 text-xs text-red-400">Enter a valid principal or principal:64-hex-subaccount.</p>
+          )}
         </div>
 
         {/* Broker */}
@@ -535,11 +576,18 @@ export function SubscribeForm({ defaults }: SubscribeFormProps) {
           <label className="block text-sm font-medium text-slate-300 mb-1">Broker <span className="text-slate-500">(optional)</span></label>
           <input
             type="text"
+            aria-label="Broker"
             value={broker}
             onChange={(e) => setBroker(e.target.value)}
-            placeholder="Principal"
+            placeholder="principal or principal:64-hex-subaccount"
             className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-slate-200 placeholder-slate-500 focus:border-emerald-500 focus:outline-none font-mono text-sm"
           />
+          <p className="mt-1 text-xs text-slate-500">
+            Accepts either an owner principal or an account string in the form <span className="font-mono">principal:subaccountHex</span>.
+          </p>
+          {broker && !validBrokerAccount && (
+            <p className="mt-1 text-xs text-red-400">Enter a valid principal or principal:64-hex-subaccount.</p>
+          )}
         </div>
 
         {/* Allowance Info */}

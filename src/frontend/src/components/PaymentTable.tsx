@@ -1,6 +1,11 @@
 import type { PaymentRecord } from '../canister/subs';
 import { PrincipalDisplay } from './PrincipalDisplay';
 
+interface PaymentTableProps {
+  payments: PaymentRecord[];
+  tokenLabelBySubscriptionId?: Record<string, string>;
+}
+
 function formatAmount(amount: bigint, decimals = 8): string {
   const whole = amount / BigInt(10 ** decimals);
   const frac = amount % BigInt(10 ** decimals);
@@ -18,7 +23,7 @@ function formatDate(ns: bigint): string {
   });
 }
 
-export function PaymentTable({ payments }: { payments: PaymentRecord[] }) {
+export function PaymentTable({ payments, tokenLabelBySubscriptionId = {} }: PaymentTableProps) {
   if (payments.length === 0) {
     return <p className="text-slate-400 text-sm">No payments found.</p>;
   }
@@ -31,6 +36,7 @@ export function PaymentTable({ payments }: { payments: PaymentRecord[] }) {
             <th className="py-2 px-3">ID</th>
             <th className="py-2 px-3">Date</th>
             <th className="py-2 px-3">Service</th>
+            <th className="py-2 px-3">Token</th>
             <th className="py-2 px-3 text-right">Amount</th>
             <th className="py-2 px-3">Sub ID</th>
             <th className="py-2 px-3">Status</th>
@@ -43,6 +49,9 @@ export function PaymentTable({ payments }: { payments: PaymentRecord[] }) {
               <td className="py-2 px-3 text-slate-300">{formatDate(p.date)}</td>
               <td className="py-2 px-3">
                 <PrincipalDisplay principal={p.service.toText()} />
+              </td>
+              <td className="py-2 px-3 text-slate-300">
+                {tokenLabelBySubscriptionId[p.subscriptionId.toString()] ?? '—'}
               </td>
               <td className="py-2 px-3 text-right text-slate-200 font-mono">
                 {formatAmount(p.amount)}

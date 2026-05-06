@@ -358,6 +358,7 @@ export const idlFactory = ({ IDL }) => {
     'service' : IDL.Principal,
     'totalRevenue' : IDL.Nat,
     'activeSubscriptions' : IDL.Nat,
+    'tokenCanister' : IDL.Principal,
   });
   const TokenPointer = IDL.Vec(IDL.Nat8);
   const SubscriptionRequestItem = IDL.Variant({
@@ -564,11 +565,22 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(DailyRevenueEntry)],
         ['query'],
       ),
+    'icrc79_service_daily_revenue_update' : IDL.Func(
+        [IDL.Principal, IDL.Opt(IDL.Nat), IDL.Nat, IDL.Nat],
+        [IDL.Vec(DailyRevenueEntry)],
+        [],
+      ),
     'icrc79_service_leaderboard' : IDL.Func(
         [IDL.Opt(IDL.Nat), IDL.Opt(IDL.Nat)],
         [IDL.Vec(LeaderboardEntry)],
         ['query'],
       ),
+    'icrc79_service_leaderboard_update' : IDL.Func(
+        [IDL.Opt(IDL.Nat), IDL.Opt(IDL.Nat)],
+        [IDL.Vec(LeaderboardEntry)],
+        [],
+      ),
+    'icrc79_set_min_analytics_cycles' : IDL.Func([IDL.Nat], [], []),
     'icrc79_subscribe' : IDL.Func(
         [SubscriptionRequest],
         [SubscriptionResult],

@@ -3,9 +3,11 @@ import type { Subscription } from '../canister/subs';
 import { StatusBadge } from './StatusBadge';
 import { IntervalLabel } from './IntervalLabel';
 import { PrincipalDisplay } from './PrincipalDisplay';
+import { TokenPrincipalDisplay } from './TokenPrincipalDisplay';
 
 interface SubscriptionCardProps {
   subscription: Subscription;
+  tokenSymbol?: string;
   onPause?: () => void;
   onResume?: () => void;
   onCancel?: () => void;
@@ -19,7 +21,7 @@ function formatAmount(amount: bigint, decimals = 8): string {
   return fracStr ? `${whole}.${fracStr}` : whole.toString();
 }
 
-export function SubscriptionCard({ subscription, onPause, onResume, onCancel, isPending }: SubscriptionCardProps) {
+export function SubscriptionCard({ subscription, tokenSymbol, onPause, onResume, onCancel, isPending }: SubscriptionCardProps) {
   const isActive = 'Active' in subscription.status;
   const isPaused = 'Paused' in subscription.status;
 
@@ -42,7 +44,12 @@ export function SubscriptionCard({ subscription, onPause, onResume, onCancel, is
         </div>
         <div>
           <span className="text-slate-400">Token:</span>
-          <div><PrincipalDisplay principal={subscription.tokenCanister.toText()} /></div>
+          <div>
+            <TokenPrincipalDisplay
+              principal={subscription.tokenCanister.toText()}
+              symbol={tokenSymbol}
+            />
+          </div>
         </div>
         <div>
           <span className="text-slate-400">Amount:</span>

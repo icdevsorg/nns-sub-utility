@@ -19,9 +19,17 @@ vi.mock('../../auth/AuthProvider', () => ({
 
 // ------- hook mocks -------
 const paymentsMock = { data: undefined as any, isPending: false, isError: false };
+const subscriptionsMock = { data: undefined as any };
+const tokenMock = { data: undefined as any };
 
 vi.mock('../../hooks/useUserPayments', () => ({
   useUserPayments: () => paymentsMock,
+}));
+vi.mock('../../hooks/useUserSubscriptions', () => ({
+  useUserSubscriptions: () => subscriptionsMock,
+}));
+vi.mock('../../hooks/useTokenInfo', () => ({
+  useTokenInfo: () => tokenMock,
 }));
 
 function mockPayment(id = 1n) {
@@ -44,6 +52,8 @@ function resetMocks() {
   paymentsMock.data = undefined;
   paymentsMock.isPending = false;
   paymentsMock.isError = false;
+  subscriptionsMock.data = [];
+  tokenMock.data = [];
   authMock.isAuthenticated = true;
   authMock.isLoading = false;
 }
@@ -91,8 +101,21 @@ describe('MyPayments', () => {
 
   it('renders payment table with data', () => {
     paymentsMock.data = [mockPayment(42n)];
+    subscriptionsMock.data = [
+      {
+        subscriptionId: 1n,
+        tokenCanister: Principal.fromText('ryjl3-tyaaa-aaaaa-aaaba-cai'),
+      },
+    ];
+    tokenMock.data = [
+      {
+        tokenCanister: Principal.fromText('ryjl3-tyaaa-aaaaa-aaaba-cai'),
+        tokenSymbol: 'ICP',
+      },
+    ];
     renderPage();
     expect(screen.getByText('#42')).toBeInTheDocument();
+    expect(screen.getByText('ICP')).toBeInTheDocument();
   });
 
   it('renders pagination controls', () => {

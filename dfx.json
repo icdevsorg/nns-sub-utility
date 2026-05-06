@@ -109,6 +109,13 @@
       "main": "src/main.mo",
       "packtool": "mops sources",
       "type": "motoko"
+    },
+    "frontend": {
+      "type": "assets",
+      "build": "cd src/frontend && npm run build",
+      "source": [
+        "src/frontend/dist"
+      ]
     }
   },
   "defaults": {

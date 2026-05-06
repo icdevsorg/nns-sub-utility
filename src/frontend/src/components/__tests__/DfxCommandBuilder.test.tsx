@@ -18,21 +18,27 @@ describe('DfxCommandBuilder', () => {
 
   it('generates command containing service principal', () => {
     render(<DfxCommandBuilder servicePrincipal={servicePrincipal} />);
-    const pre = screen.getByText(/dfx canister call/);
+    const pre = screen.getByText(/dfx canister --network ic call/);
     expect(pre.textContent).toContain(servicePrincipal);
   });
 
   it('generates command containing canister ID', () => {
     render(<DfxCommandBuilder servicePrincipal={servicePrincipal} />);
-    const pre = screen.getByText(/dfx canister call/);
+    const pre = screen.getByText(/dfx canister --network ic call/);
     expect(pre.textContent).toContain('hl3xq-uiaaa-aaaar-qbxqa-cai');
+  });
+
+  it('generates commands with mainnet network flag', () => {
+    render(<DfxCommandBuilder servicePrincipal={servicePrincipal} />);
+    const pre = screen.getByText(/dfx canister/);
+    expect(pre.textContent).toContain('dfx canister --network ic call');
   });
 
   it('switches operation and updates command', () => {
     render(<DfxCommandBuilder servicePrincipal={servicePrincipal} />);
     const select = screen.getByRole('combobox');
     fireEvent.change(select, { target: { value: 'get_service_payments' } });
-    const pre = screen.getByText(/dfx canister call/);
+    const pre = screen.getByText(/dfx canister --network ic call/);
     expect(pre.textContent).toContain('icrc79_get_service_payments');
   });
 

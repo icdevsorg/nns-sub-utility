@@ -21,9 +21,13 @@ vi.mock('../../auth/AuthProvider', () => ({
 const subsMock = { data: undefined as any, isPending: false, isError: false };
 const cancelMock = { mutate: vi.fn(), isPending: false };
 const pauseMock = { mutate: vi.fn(), isPending: false };
+const tokenMock = { data: undefined as any };
 
 vi.mock('../../hooks/useUserSubscriptions', () => ({
   useUserSubscriptions: () => subsMock,
+}));
+vi.mock('../../hooks/useTokenInfo', () => ({
+  useTokenInfo: () => tokenMock,
 }));
 vi.mock('../../hooks/useCancelSubscription', () => ({
   useCancelSubscription: () => cancelMock,
@@ -60,6 +64,12 @@ function resetMocks() {
   cancelMock.isPending = false;
   pauseMock.mutate.mockClear();
   pauseMock.isPending = false;
+  tokenMock.data = [
+    {
+      tokenCanister: Principal.fromText('ryjl3-tyaaa-aaaaa-aaaba-cai'),
+      tokenSymbol: 'ICP',
+    },
+  ];
   authMock.isAuthenticated = true;
   authMock.isLoading = false;
 }
@@ -109,6 +119,7 @@ describe('MySubscriptions', () => {
     subsMock.data = [mockSub()];
     renderPage();
     expect(screen.getByText('#1')).toBeInTheDocument();
+    expect(screen.getByText('ICP')).toBeInTheDocument();
   });
 
   it('renders status filter tabs', () => {

@@ -1,13 +1,15 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useAuth } from '../auth/AuthProvider';
 import { useUserSubscriptions } from '../hooks/useUserSubscriptions';
 import { useCancelSubscription } from '../hooks/useCancelSubscription';
 import { usePauseSubscription } from '../hooks/usePauseSubscription';
+import { useTokenInfo } from '../hooks/useTokenInfo';
 import { SubscriptionCard } from '../components/SubscriptionCard';
 import { AuthGuard } from '../components/AuthGuard';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import type { SubStatusFilter } from '@declarations/subs/subs.did.d.ts';
 import { CONFIG } from '../config';
+import { safeStringify } from '../utils/safeStringify';
 
 const STATUS_FILTERS: { label: string; value: SubStatusFilter | undefined }[] = [
   { label: 'All', value: undefined },
@@ -29,6 +31,12 @@ function MySubscriptionsInner() {
     statusFilter,
     prev,
   });
+  const { data: supportedTokens } = useTokenInfo();
+
+  const tokenSymbolByCanister = useMemo(
+    () => Object.fromEntries((supportedTokens ?? []).map((token) => [token.tokenCanister.toText(), token.tokenSymbol])),
+    [supportedTokens],
+  );
 
   const cancelMutation = useCancelSubscription();
   const pauseMutation = usePauseSubscription();
@@ -74,7 +82,7 @@ function MySubscriptionsInner() {
             onClick={() => { setStatusFilter(f.value); setPage(0); }}
             className={`px-3 py-1.5 text-sm rounded border transition-colors ${
               (statusFilter === undefined && f.value === undefined) ||
-              (statusFilter && f.value && JSON.stringify(statusFilter) === JSON.stringify(f.value))
+              (statusFilter && f.value && safeStringify(statusFilter) === safeStringify(f.value))
                 ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
                 : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-slate-200'
             }`}
@@ -97,6 +105,7 @@ function MySubscriptionsInner() {
             <SubscriptionCard
               key={sub.subscriptionId.toString()}
               subscription={sub}
+              tokenSymbol={tokenSymbolByCanister[sub.tokenCanister.toText()]}
               onPause={() => handlePause(sub.subscriptionId)}
               onResume={() => handleResume(sub.subscriptionId)}
               onCancel={() => handleCancel(sub.subscriptionId)}

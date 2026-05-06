@@ -2,6 +2,7 @@ import Array "mo:base/Array";
 import Blob "mo:base/Blob";
 import Buffer "mo:base/Buffer";
 import D "mo:base/Debug";
+import ExperimentalCycles "mo:base/ExperimentalCycles";
 import Int "mo:base/Int";
 import Iter "mo:base/Iter";
 import Nat "mo:base/Nat";
@@ -10,7 +11,6 @@ import Text "mo:base/Text";
 import Time "mo:base/Time";
 import Timer "mo:base/Timer";
 import Principal "mo:base/Principal";
-import BTree "mo:stableheapbtreemap/BTree";
 import ICRC3 "mo:icrc3-mo";
 import ICRC3Migrations "mo:icrc3-mo/migrations";
 import ICRC3Types "mo:icrc3-mo/migrations/types";
@@ -30,38 +30,48 @@ import CertTree "mo:cert/CertTree";
 import Map "mo:map/Map";
 
 
-shared (deployer) actor class Subs(initArgs: ?{
+shared (deployer) persistent actor class Subs(initArgs: ?{
   icrc79InitArgs: ?ICRC79MigrationTypes.Args;
   icrc3InitArgs : ?ICRC3Types.Args;
   ttInitArgs : ?TT.Args;
 }) : async Service.Service = this {
 
-  let debug_channel = {
+  transient let debug_channel = {
     announce = true;
   };
 
-  let ttDefaultArgs = null;
+  transient let ttDefaultArgs = null;
 
-  let initManager = ClassPlus.ClassPlusInitializationManager(deployer.caller, Principal.fromActor(this), true);
+  transient let initManager = ClassPlus.ClassPlusInitializationManager<system>(deployer.caller, Principal.fromActor(this), true);
 
   stable var icrc3_migration_state = ICRC3.initialState();
   stable var tt_migration_state : TT.State = TT.Migration.migration.initialState;
 
   stable var blockMap  = Map.new<Principal, Bool>();
 
+  // Minimum cycles required by the _update analytics endpoints to deter
+  // canister-to-canister scraping.  Admin-configurable at runtime.
+  stable var minAnalyticsCycles : Nat = 100_000_000; // 100M cycles default
+
   // ───── Revenue Indexer (Phase 0) ─────
-  // Per-service index: tracks total revenue, active sub count, and daily revenue buckets
-  // Daily revenue is keyed by day number (nanoseconds / NS_PER_DAY) → productId → amount
-  let NS_PER_DAY : Nat = 86_400_000_000_000;
-  let ROLLING_WINDOW_DAYS : Nat = 365;
+  // Per-service index: tracks service-wide daily revenue plus token-separated totals.
+  // Daily revenue is keyed by day number (nanoseconds / NS_PER_DAY) → productId → amount.
+  transient let NS_PER_DAY : Nat = 86_400_000_000_000;
+  transient let ROLLING_WINDOW_DAYS : Nat = 365;
 
   type DailyBucket = Map.Map<Nat, Nat>; // dayKey → total amount for that day+product
   type ProductDailyMap = Map.Map<Nat, DailyBucket>; // productId (0 = no product) → daily buckets
+
+  type TokenRevenueIndex = {
+    var totalRevenue : Nat;
+    var activeSubscriptions : Nat;
+  };
 
   type ServiceRevenueIndex = {
     var totalRevenue : Nat;
     var activeSubscriptions : Nat;
     dailyRevenue : ProductDailyMap; // productId → (dayKey → amount)
+    tokenRevenue : Map.Map<Principal, TokenRevenueIndex>;
   };
 
   stable var revenueIndex = Map.new<Principal, ServiceRevenueIndex>();
@@ -82,19 +92,23 @@ shared (deployer) actor class Subs(initArgs: ?{
     return true;
   };
 
-  let ct = CertTree.Ops(certStore);
+  transient let ct = CertTree.Ops(certStore);
 
 
   private func get_icrc3_environment() : ICRC3.Environment{
     {
-      updated_certification = ?updated_certification;
+      advanced = ?{
+        updated_certification = ?updated_certification;
+        icrc85 = null;
+      };
       get_certificate_store = ?get_certificate_store;
+      var org_icdevs_timer_tool = null;
     };
   };
 
   
 
-    let icrc3 = ICRC3.Init<system>({
+  transient let icrc3 = ICRC3.Init({
     initialState = icrc3_migration_state;
     args = switch(do?{initArgs!.icrc3InitArgs!}){
         case(null) {
@@ -102,7 +116,7 @@ shared (deployer) actor class Subs(initArgs: ?{
         };
         case(?val) ?val;
       };
-    manager= initManager;
+    org_icdevs_class_plus_manager = initManager;
     pullEnvironment = ?get_icrc3_environment;
     onInitialize = ?(func(newClass : ICRC3.ICRC3) : async* () {
       D.print("Initializing ICRC3");
@@ -116,8 +130,8 @@ shared (deployer) actor class Subs(initArgs: ?{
   });
 
 
-  transient let tt  = TT.Init<system>({
-    manager = initManager;
+  transient let tt  = TT.Init({
+    org_icdevs_class_plus_manager = initManager;
     initialState = tt_migration_state;
     args = null;
     pullEnvironment = ?(func() : TT.Environment {
@@ -141,7 +155,7 @@ shared (deployer) actor class Subs(initArgs: ?{
 
 
 
-  private var _icrc79 : ?ICRC79.ICRC79 = null;
+  private transient var _icrc79 : ?ICRC79.ICRC79 = null;
 
   private func getICRC79Environment() : ICRC79.Environment {
     return {
@@ -209,9 +223,24 @@ shared (deployer) actor class Subs(initArgs: ?{
           var totalRevenue = 0;
           var activeSubscriptions = 0;
           dailyRevenue = Map.new<Nat, DailyBucket>();
+          tokenRevenue = Map.new<Principal, TokenRevenueIndex>();
         };
         ignore Map.put<Principal, ServiceRevenueIndex>(revenueIndex, Map.phash, service, idx);
         idx;
+      };
+    };
+  };
+
+  private func getOrCreateTokenIndex(idx : ServiceRevenueIndex, tokenCanister : Principal) : TokenRevenueIndex {
+    switch (Map.get<Principal, TokenRevenueIndex>(idx.tokenRevenue, Map.phash, tokenCanister)) {
+      case (?tokenIdx) tokenIdx;
+      case (null) {
+        let tokenIdx : TokenRevenueIndex = {
+          var totalRevenue = 0;
+          var activeSubscriptions = 0;
+        };
+        ignore Map.put<Principal, TokenRevenueIndex>(idx.tokenRevenue, Map.phash, tokenCanister, tokenIdx);
+        tokenIdx;
       };
     };
   };
@@ -238,9 +267,11 @@ shared (deployer) actor class Subs(initArgs: ?{
     };
   };
 
-  private func recordRevenue(service : Principal, productId : ?Nat, amount : Nat, dateNs : Nat) {
+  private func recordRevenue(service : Principal, tokenCanister : Principal, productId : ?Nat, amount : Nat, dateNs : Nat) {
     let idx = getOrCreateServiceIndex(service);
+    let tokenIdx = getOrCreateTokenIndex(idx, tokenCanister);
     idx.totalRevenue += amount;
+    tokenIdx.totalRevenue += amount;
 
     let dayKey = nsToDayKey(dateNs);
     let prodKey = switch(productId) { case(?p) p; case(null) 0; };
@@ -270,20 +301,27 @@ shared (deployer) actor class Subs(initArgs: ?{
   private func rebuildRevenueIndex(state : ICRC79MigrationTypes.Current.State) {
     resetRevenueIndex();
 
-    for ((_, subscription) in BTree.entries(state.subscriptions2)) {
+    for ((_, subscription) in ICRC79MigrationTypes.Current.OrderedMap.entries(state.subscriptions3)) {
       switch (subscription.status) {
         case (#Active) {
           let idx = getOrCreateServiceIndex(subscription.serviceCanister);
+          let tokenIdx = getOrCreateTokenIndex(idx, subscription.tokenCanister);
           idx.activeSubscriptions += 1;
+          tokenIdx.activeSubscriptions += 1;
         };
         case (_) {};
       };
     };
 
-    for ((_, payment) in BTree.entries(state.payments2)) {
+    for ((_, payment) in ICRC79MigrationTypes.Current.OrderedMap.entries(state.payments3)) {
       switch (payment.result) {
         case (#Ok) {
-          recordRevenue(payment.service, payment.productId, payment.amount, payment.date);
+          switch (ICRC79MigrationTypes.Current.OrderedMap.get(state.subscriptions3, payment.subscriptionId)) {
+            case (?subscription) {
+              recordRevenue(subscription.serviceCanister, subscription.tokenCanister, subscription.productId, payment.amount, payment.date);
+            };
+            case (null) {};
+          };
         };
         case (#Err(_)) {};
       };
@@ -295,7 +333,7 @@ shared (deployer) actor class Subs(initArgs: ?{
   private func onNewPayment<system>(subscription : ICRC79.SubscriptionState, payment : ICRC79.PaymentRecord, trxId : Nat) : () {
     switch(payment.result) {
       case(#Ok) {
-        recordRevenue(subscription.serviceCanister, subscription.productId, payment.amount, payment.date);
+        recordRevenue(subscription.serviceCanister, subscription.tokenCanister, subscription.productId, payment.amount, payment.date);
       };
       case(#Err(_)) {};
     };
@@ -303,30 +341,42 @@ shared (deployer) actor class Subs(initArgs: ?{
 
   private func onNewSubscription<system>(subscription : ICRC79.SubscriptionState, trxId : Nat) : () {
     let idx = getOrCreateServiceIndex(subscription.serviceCanister);
+    let tokenIdx = getOrCreateTokenIndex(idx, subscription.tokenCanister);
     idx.activeSubscriptions += 1;
+    tokenIdx.activeSubscriptions += 1;
   };
 
   private func onCanceledSubscription<system>(subscription : ICRC79.SubscriptionState, trxId : Nat) : () {
     let idx = getOrCreateServiceIndex(subscription.serviceCanister);
+    let tokenIdx = getOrCreateTokenIndex(idx, subscription.tokenCanister);
     if (idx.activeSubscriptions > 0) {
       idx.activeSubscriptions -= 1;
+    };
+    if (tokenIdx.activeSubscriptions > 0) {
+      tokenIdx.activeSubscriptions -= 1;
     };
   };
 
   private func onPauseSubscription<system>(subscription : ICRC79.SubscriptionState, trxId : Nat) : () {
     let idx = getOrCreateServiceIndex(subscription.serviceCanister);
+    let tokenIdx = getOrCreateTokenIndex(idx, subscription.tokenCanister);
     if (idx.activeSubscriptions > 0) {
       idx.activeSubscriptions -= 1;
+    };
+    if (tokenIdx.activeSubscriptions > 0) {
+      tokenIdx.activeSubscriptions -= 1;
     };
   };
 
   private func onActivateSubscription<system>(subscription : ICRC79.SubscriptionState, trxId : Nat) : () {
     let idx = getOrCreateServiceIndex(subscription.serviceCanister);
+    let tokenIdx = getOrCreateTokenIndex(idx, subscription.tokenCanister);
     idx.activeSubscriptions += 1;
+    tokenIdx.activeSubscriptions += 1;
   };
 
-  let icrc79 = ICRC79.Init<system>({
-    manager = initManager;
+  transient let icrc79 = ICRC79.Init({
+    org_icdevs_class_plus_manager = initManager;
     initialState = icrc79MigrationState;
     args = switch(do?{initArgs!.icrc79InitArgs!}){
       case(null) {
@@ -371,12 +421,11 @@ shared (deployer) actor class Subs(initArgs: ?{
 
   
 
-  private var _tt : ?TT.TimerTool = null;
+  private transient var _tt : ?TT.TimerTool = null;
 
   private func getTTEnvironment() : TT.Environment {
     return {
       advanced = null;
-      synUnsafe = null;
       reportExecution = null;
       reportError = null;
       syncUnsafe = null;
@@ -505,6 +554,7 @@ shared (deployer) actor class Subs(initArgs: ?{
 
   public type LeaderboardEntry = {
     service : Principal;
+    tokenCanister : Principal;
     totalRevenue : Nat;
     activeSubscriptions : Nat;
   };
@@ -514,46 +564,75 @@ shared (deployer) actor class Subs(initArgs: ?{
     amount : Nat;
   };
 
-  public query func icrc79_service_leaderboard(prev : ?Nat, take : ?Nat) : async [LeaderboardEntry] {
-    let maxTake = 100;
-    let requestedTake = switch(take) { case(?t) { if (t > maxTake) maxTake else t }; case(null) 20; };
-    let startFrom = switch(prev) { case(?p) p; case(null) 0; };
-
-    // Collect all service entries
-    let entries = Buffer.Buffer<LeaderboardEntry>(Map.size(revenueIndex));
-    for ((service, idx) in Map.entries(revenueIndex)) {
-      entries.add({
-        service = service;
-        totalRevenue = idx.totalRevenue;
-        activeSubscriptions = idx.activeSubscriptions;
-      });
-    };
-
-    // Sort by totalRevenue descending
-    entries.sort(func(a : LeaderboardEntry, b : LeaderboardEntry) : Order.Order {
-      if (a.totalRevenue > b.totalRevenue) #less  // higher revenue first
-      else if (a.totalRevenue < b.totalRevenue) #greater
-      else Principal.compare(a.service, b.service);
-    });
-
-    // Paginate
-    let arr = Buffer.toArray(entries);
-    let end = if (startFrom + requestedTake > arr.size()) arr.size() else startFrom + requestedTake;
-    if (startFrom >= arr.size()) return [];
-    Array.tabulate<LeaderboardEntry>(end - startFrom, func(i : Nat) : LeaderboardEntry {
-      arr[startFrom + i];
-    });
+  // Returns true when the caller principal is an opaque (canister) ID.
+  // Canister principals end with byte 0x01; self-authenticating user principals
+  // end with 0x02; anonymous is a single byte 0x04.
+  // Used to block direct canister-to-canister scraping of expensive query endpoints.
+  func isCanisterCaller(p : Principal) : Bool {
+    let bytes = Blob.toArray(Principal.toBlob(p));
+    let len = bytes.size();
+    len > 0 and bytes[len - 1] == 0x01
   };
 
-  public query func icrc79_service_daily_revenue(
+  public query(msg) func icrc79_service_leaderboard(prev : ?Nat, take : ?Nat) : async [LeaderboardEntry] {
+    if (isCanisterCaller(msg.caller)) {
+      // Inter-canister callers cannot use this query endpoint; IC protocol
+      // prevents query functions from collecting cycles (query_as_update
+      // forces cycles_accepted = 0). Block canister scraping via principal check.
+      assert false;
+    };
+    _leaderboardResult(prev, take);
+  };
+
+  public query(msg) func icrc79_service_daily_revenue(
     service : Principal,
     productId : ?Nat,
     startDate : Nat, // nanosecond timestamp
     endDate : Nat,   // nanosecond timestamp
   ) : async [DailyRevenueEntry] {
+    if (isCanisterCaller(msg.caller)) {
+      assert false;
+    };
+    _dailyRevenueResult(service, productId, startDate, endDate);
+  };
+
+  // ── Update-context analytics variants ──────────────────────────────────────
+  // These are update calls so they can actually accept cycles from canister
+  // callers (in update context, ic0.msg_cycles_accept works fully).
+  // The minimum accepted cycles is configurable via icrc79_set_min_analytics_cycles.
+
+  func _leaderboardResult(prev : ?Nat, take : ?Nat) : [LeaderboardEntry] {
+    let maxTake = 100;
+    let requestedTake = switch(take) { case(?t) { if (t > maxTake) maxTake else t }; case(null) 20; };
+    let startFrom = switch(prev) { case(?p) p; case(null) 0; };
+    let entries = Buffer.Buffer<LeaderboardEntry>(Map.size(revenueIndex));
+    for ((service, idx) in Map.entries(revenueIndex)) {
+      for ((tokenCanister, tokenIdx) in Map.entries(idx.tokenRevenue)) {
+        entries.add({
+          service = service;
+          tokenCanister = tokenCanister;
+          totalRevenue = tokenIdx.totalRevenue;
+          activeSubscriptions = tokenIdx.activeSubscriptions;
+        });
+      };
+    };
+    entries.sort(func(a : LeaderboardEntry, b : LeaderboardEntry) : Order.Order {
+      if (a.totalRevenue > b.totalRevenue) #less
+      else if (a.totalRevenue < b.totalRevenue) #greater
+      else switch (Principal.compare(a.tokenCanister, b.tokenCanister)) {
+        case (#equal) Principal.compare(a.service, b.service);
+        case (order) order;
+      };
+    });
+    let arr = Buffer.toArray(entries);
+    let end = if (startFrom + requestedTake > arr.size()) arr.size() else startFrom + requestedTake;
+    if (startFrom >= arr.size()) return [];
+    Array.tabulate<LeaderboardEntry>(end - startFrom, func(i : Nat) : LeaderboardEntry { arr[startFrom + i]; });
+  };
+
+  func _dailyRevenueResult(service : Principal, productId : ?Nat, startDate : Nat, endDate : Nat) : [DailyRevenueEntry] {
     let startDay = nsToDayKey(startDate);
     let endDay = nsToDayKey(endDate);
-
     switch(Map.get<Principal, ServiceRevenueIndex>(revenueIndex, Map.phash, service)) {
       case(null) [];
       case(?idx) {
@@ -567,7 +646,6 @@ shared (deployer) actor class Subs(initArgs: ?{
                 results.add({ dayKey = dayKey; amount = amount });
               };
             };
-            // Sort by dayKey ascending
             results.sort(func(a : DailyRevenueEntry, b : DailyRevenueEntry) : Order.Order {
               Nat.compare(a.dayKey, b.dayKey);
             });
@@ -576,6 +654,29 @@ shared (deployer) actor class Subs(initArgs: ?{
         };
       };
     };
+  };
+
+  public shared func icrc79_service_leaderboard_update(prev : ?Nat, take : ?Nat) : async [LeaderboardEntry] {
+    let available = ExperimentalCycles.available();
+    if (available < minAnalyticsCycles) {
+      return []; // insufficient cycles — return empty rather than trap so caller knows the threshold
+    };
+    ignore ExperimentalCycles.accept<system>(minAnalyticsCycles);
+    _leaderboardResult(prev, take);
+  };
+
+  public shared func icrc79_service_daily_revenue_update(
+    service : Principal,
+    productId : ?Nat,
+    startDate : Nat,
+    endDate : Nat,
+  ) : async [DailyRevenueEntry] {
+    let available = ExperimentalCycles.available();
+    if (available < minAnalyticsCycles) {
+      return [];
+    };
+    ignore ExperimentalCycles.accept<system>(minAnalyticsCycles);
+    _dailyRevenueResult(service, productId, startDate, endDate);
   };
 
     ///MARK: 0.0.1 Functions
@@ -719,10 +820,20 @@ shared (deployer) actor class Subs(initArgs: ?{
   ///MARK: Lookups
   public query func get_token_info() : async [ICRC79.TokenInfo] {
     // Implementation of get token info logic
-    Iter.toArray<ICRC79.TokenInfo>(Map.vals(icrc79().getState().tokenInfo));
+    Array.map<((Principal, ?Blob), ICRC79.TokenInfo), ICRC79.TokenInfo>(
+      ICRC79MigrationTypes.Current.ChampMap.toArray(icrc79().getState().tokenInfo),
+      func(item) { item.1 },
+    );
   };
 
   ///MARK: Admin Functions
+  public shared(msg) func icrc79_set_min_analytics_cycles(newMin : Nat) : async () {
+    if (msg.caller != Principal.fromText("mctz3-uvscw-rbtha-zdzis-q46vd-vzbza-bxjk5-mleuf-jml6g-s2hq3-vqe")) {
+      return;
+    };
+    minAnalyticsCycles := newMin;
+  };
+
   public shared(msg) func add_token(tokenCanister: Principal, tokenPointer: ?Blob) : async ?ICRC79.TokenInfo {
       // Implementation of add token logic
       if (msg.caller != Principal.fromText("mctz3-uvscw-rbtha-zdzis-q46vd-vzbza-bxjk5-mleuf-jml6g-s2hq3-vqe")) { //icdev manager

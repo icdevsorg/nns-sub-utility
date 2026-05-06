@@ -151,6 +151,7 @@ export interface LeaderboardEntry {
   'service' : Principal,
   'totalRevenue' : bigint,
   'activeSubscriptions' : bigint,
+  'tokenCanister' : Principal,
 }
 export type PauseError = { 'InvalidStatus' : SubStatus } |
   { 'NotFound' : null } |

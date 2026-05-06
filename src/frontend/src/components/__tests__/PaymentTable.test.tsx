@@ -36,6 +36,7 @@ describe('PaymentTable', () => {
     render(<PaymentTable payments={[mockPayment() as any]} />);
     expect(screen.getByText('ID')).toBeInTheDocument();
     expect(screen.getByText('Date')).toBeInTheDocument();
+    expect(screen.getByText('Token')).toBeInTheDocument();
     expect(screen.getByText('Amount')).toBeInTheDocument();
     expect(screen.getByText('Status')).toBeInTheDocument();
   });
@@ -59,5 +60,15 @@ describe('PaymentTable', () => {
     // 1.5 tokens = 150_000_000 with 8 decimals
     render(<PaymentTable payments={[mockPayment({ amount: 150_000_000n }) as any]} />);
     expect(screen.getByText('1.5')).toBeInTheDocument();
+  });
+
+  it('renders token symbol when a subscription token label is provided', () => {
+    render(
+      <PaymentTable
+        payments={[mockPayment({ subscriptionId: 42n }) as any]}
+        tokenLabelBySubscriptionId={{ '42': 'ICP' }}
+      />,
+    );
+    expect(screen.getByText('ICP')).toBeInTheDocument();
   });
 });

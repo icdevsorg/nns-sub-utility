@@ -69,12 +69,23 @@ describe('Dashboard', () => {
     leaderMock.data = [
       {
         service: Principal.fromText('aaaaa-aa'),
+        tokenCanister: Principal.fromText('ryjl3-tyaaa-aaaaa-aaaba-cai'),
         totalRevenue: 500_000_000n,
         activeSubscriptions: 3n,
       },
     ];
+    tokenMock.data = [
+      {
+        tokenCanister: Principal.fromText('ryjl3-tyaaa-aaaaa-aaaba-cai'),
+        tokenSymbol: 'ICP',
+        tokenDecimals: 8,
+        tokenFee: [10_000n],
+        standards: ['ICRC-1', 'ICRC-2'],
+      },
+    ];
     render(<Dashboard />);
     expect(screen.getByText('Top Services by Revenue')).toBeInTheDocument();
+    expect(screen.getAllByText('ICP').length).toBeGreaterThan(0);
     expect(screen.getByText('3')).toBeInTheDocument();
   });
 
@@ -122,6 +133,56 @@ describe('Dashboard', () => {
     render(<Dashboard />);
     expect(screen.getByText('ICP')).toBeInTheDocument();
     expect(screen.getByText('ICRC-1, ICRC-2')).toBeInTheDocument();
+  });
+
+  it('renders the revenue leaderboard before supported tokens', () => {
+    tokenMock.data = [
+      {
+        tokenCanister: Principal.fromText('ryjl3-tyaaa-aaaaa-aaaba-cai'),
+        tokenSymbol: 'ICP',
+        tokenDecimals: 8,
+        tokenFee: [10_000n],
+        standards: ['ICRC-1', 'ICRC-2'],
+      },
+    ];
+    leaderMock.data = [
+      {
+        service: Principal.fromText('aaaaa-aa'),
+        tokenCanister: Principal.fromText('ryjl3-tyaaa-aaaaa-aaaba-cai'),
+        totalRevenue: 500_000_000n,
+        activeSubscriptions: 3n,
+      },
+    ];
+
+    render(<Dashboard />);
+    const sectionHeadings = screen.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent);
+    expect(sectionHeadings.indexOf('Top Services by Revenue')).toBeLessThan(sectionHeadings.indexOf('Supported Tokens'));
+  });
+
+  it('groups leaderboard rows by token and formats totals with token decimals', () => {
+    tokenMock.data = [
+      {
+        tokenCanister: Principal.fromText('agtsn-xyaaa-aaaag-ak3kq-cai'),
+        tokenSymbol: 'ICDV',
+        tokenDecimals: 2,
+        tokenFee: [1n],
+        standards: ['ICRC-1', 'ICRC-2'],
+      },
+    ];
+    leaderMock.data = [
+      {
+        service: Principal.fromText('aaaaa-aa'),
+        tokenCanister: Principal.fromText('agtsn-xyaaa-aaaag-ak3kq-cai'),
+        totalRevenue: 1234n,
+        activeSubscriptions: 2n,
+      },
+    ];
+
+    render(<Dashboard />);
+
+    expect(screen.getAllByText('ICDV').length).toBeGreaterThan(0);
+    expect(screen.getByText('12.34')).toBeInTheDocument();
+    expect(screen.getByText(/Revenue is separated by token/)).toBeInTheDocument();
   });
 
   it('renders metadata stat values', () => {

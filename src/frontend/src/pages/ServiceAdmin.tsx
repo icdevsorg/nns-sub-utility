@@ -1,23 +1,27 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Principal } from '@dfinity/principal';
 import { useAuth } from '../auth/AuthProvider';
 import { useServiceSubscriptions } from '../hooks/useServiceSubscriptions';
 import { useServicePayments } from '../hooks/useServicePayments';
 import { useServiceDailyRevenue } from '../hooks/useServiceDailyRevenue';
 import { useConfirmSubscription } from '../hooks/useConfirmSubscription';
+import { useTokenInfo } from '../hooks/useTokenInfo';
 import { DfxCommandBuilder } from '../components/DfxCommandBuilder';
+import { DeepLinkBuilder } from '../components/DeepLinkBuilder';
 import { RevenueChart } from '../components/RevenueChart';
 import { PrincipalDisplay } from '../components/PrincipalDisplay';
 import { StatusBadge } from '../components/StatusBadge';
 import { IntervalLabel } from '../components/IntervalLabel';
 import { PaymentTable } from '../components/PaymentTable';
 import { LoadingSpinner } from '../components/LoadingSpinner';
-import type { SubStatusFilter } from '@declarations/subs/subs.did.d.ts';
+import type { Interval, SubStatusFilter } from '@declarations/subs/subs.did.d.ts';
 import { CONFIG } from '../config';
+import { serializeIntervalForDeepLink, type DeepLinkBuilderValues } from '../utils/deepLink';
+import { isValidPrincipal } from '../utils/account';
+import { buildPaymentTokenLabelBySubscriptionId } from '../utils/paymentTokens';
+import { sortTokenOptions } from '../utils/tokenOptions';
 
-function isValidPrincipal(text: string): boolean {
-  try { Principal.fromText(text); return true; } catch { return false; }
-}
+const NS_PER_DAY = 86_400_000_000_000n;
 
 function formatAmount(n: bigint, decimals = 8): string {
   return (Number(n) / Math.pow(10, decimals)).toLocaleString(undefined, {
@@ -40,6 +44,7 @@ export function ServiceAdmin() {
   const { isAuthenticated, principal: userPrincipal } = useAuth();
   const [servicePrincipal, setServicePrincipal] = useState('');
   const [activeService, setActiveService] = useState('');
+  const [deepLinkSeed, setDeepLinkSeed] = useState<Partial<DeepLinkBuilderValues>>({});
   const [statusTab, setStatusTab] = useState<StatusTab>('All');
   const [subPrev, setSubPrev] = useState<bigint | undefined>();
   const [payPrev, setPayPrev] = useState<bigint | undefined>();
@@ -56,10 +61,34 @@ export function ServiceAdmin() {
   );
 
   // Revenue: last 30 days
-  const now = BigInt(Math.floor(Date.now() / 86_400_000));
-  const thirtyDaysAgo = now - 30n;
+  const now = BigInt(Date.now()) * 1_000_000n;
+  const thirtyDaysAgo = now - (30n * NS_PER_DAY);
   const { data: revenueData, isPending: revenueLoading } = useServiceDailyRevenue(
     activeService || undefined, undefined, thirtyDaysAgo, now,
+  );
+  const { data: supportedTokens } = useTokenInfo();
+
+  const paymentSubscriptionIds = useMemo(
+    () => Array.from(new Set((payments ?? []).map((payment) => payment.subscriptionId))),
+    [payments],
+  );
+  const paymentFilter = useMemo(
+    () => paymentSubscriptionIds.length > 0
+      ? {
+          status: [] as [],
+          subscriptions: [paymentSubscriptionIds] as [bigint[]],
+          products: [] as [],
+        }
+      : undefined,
+    [paymentSubscriptionIds],
+  );
+  const { data: paymentSubscriptions } = useServiceSubscriptions(
+    activeService || undefined,
+    paymentFilter,
+  );
+  const paymentTokenLabelBySubscriptionId = useMemo(
+    () => buildPaymentTokenLabelBySubscriptionId(paymentSubscriptions ?? [], supportedTokens),
+    [paymentSubscriptions, supportedTokens],
   );
 
   const confirmMutation = useConfirmSubscription();
@@ -67,10 +96,44 @@ export function ServiceAdmin() {
   const handleLoadService = () => {
     if (isValidPrincipal(servicePrincipal)) {
       setActiveService(servicePrincipal);
+      setDeepLinkSeed({ service: servicePrincipal });
       setSubPrev(undefined);
       setPayPrev(undefined);
     }
   };
+
+  const deepLinkInitialValues = useMemo(
+    () => (deepLinkSeed.service ? deepLinkSeed : { service: activeService }),
+    [activeService, deepLinkSeed],
+  );
+
+  const deepLinkBuilderKey = useMemo(
+    () => JSON.stringify(deepLinkInitialValues),
+    [deepLinkInitialValues],
+  );
+
+  const deepLinkTokenOptions = useMemo(() => {
+    const options = new Map<string, string>();
+    const tokenLabelByCanister = new Map(
+      (supportedTokens ?? []).map((token) => [
+        token.tokenCanister.toText(),
+        `${token.tokenSymbol} (${token.tokenCanister.toText()})`,
+      ]),
+    );
+
+    for (const sub of subscriptions ?? []) {
+      const tokenCanister = sub.tokenCanister.toText();
+      options.set(tokenCanister, tokenLabelByCanister.get(tokenCanister) ?? tokenCanister);
+    }
+
+    if (options.size === 0) {
+      for (const token of supportedTokens ?? []) {
+        options.set(token.tokenCanister.toText(), `${token.tokenSymbol} (${token.tokenCanister.toText()})`);
+      }
+    }
+
+    return sortTokenOptions(Array.from(options.entries()).map(([value, label]) => ({ value, label })));
+  }, [subscriptions, supportedTokens]);
 
   const handleConfirm = async (subscriptionId: bigint) => {
     try {
@@ -84,6 +147,25 @@ export function ServiceAdmin() {
     if (userPrincipal) {
       setServicePrincipal(userPrincipal);
     }
+  };
+
+  const handleBuildDeepLink = (sub: {
+    serviceCanister: Principal;
+    tokenCanister: Principal;
+    amountPerInterval: bigint;
+    interval: Interval;
+    productId: bigint[];
+  }) => {
+    const intervalPreset = serializeIntervalForDeepLink(sub.interval);
+
+    setDeepLinkSeed({
+      service: sub.serviceCanister.toText(),
+      token: sub.tokenCanister.toText(),
+      amount: sub.amountPerInterval.toString(),
+      interval: intervalPreset.interval,
+      intervalValue: intervalPreset.intervalValue,
+      product: sub.productId.length > 0 ? sub.productId[0]!.toString() : '',
+    });
   };
 
   return (
@@ -124,6 +206,9 @@ export function ServiceAdmin() {
         {servicePrincipal && !isValidPrincipal(servicePrincipal) && (
           <p className="mt-1 text-xs text-red-400">Invalid principal</p>
         )}
+        <p className="mt-2 text-xs text-slate-500">
+          Use the principal of your service/backend canister here. This is the canister that will query or manage subscriptions against the ICRC-79 service.
+        </p>
       </div>
 
       {/* Content — only shown after service is loaded */}
@@ -149,6 +234,16 @@ export function ServiceAdmin() {
           {/* Subscriptions Tab */}
           {activeTab === 'subscriptions' && (
             <section>
+              <div className="mb-6">
+                <DeepLinkBuilder
+                  key={deepLinkBuilderKey}
+                  initialValues={deepLinkInitialValues}
+                  title="Service Deep Link Builder"
+                  description="Generate a subscribe URL for this service, or seed it from any subscription row below. Target and broker accounts can include subaccounts."
+                  tokenOptions={deepLinkTokenOptions}
+                />
+              </div>
+
               {/* Status Filter */}
               <div className="flex gap-2 mb-4 flex-wrap">
                 {(Object.keys(STATUS_MAP) as StatusTab[]).map((tab) => (
@@ -181,7 +276,7 @@ export function ServiceAdmin() {
                           <th className="py-2 px-3">Interval</th>
                           <th className="py-2 px-3">Status</th>
                           <th className="py-2 px-3">Product</th>
-                          {isAuthenticated && <th className="py-2 px-3">Actions</th>}
+                          <th className="py-2 px-3">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -198,17 +293,25 @@ export function ServiceAdmin() {
                             <td className="py-2 px-3"><IntervalLabel interval={sub.interval} /></td>
                             <td className="py-2 px-3"><StatusBadge status={sub.status} /></td>
                             <td className="py-2 px-3 text-slate-400">{sub.productId.length > 0 ? sub.productId[0]!.toString() : '—'}</td>
-                            {isAuthenticated && (
-                              <td className="py-2 px-3">
+                            <td className="py-2 px-3">
+                              <div className="flex flex-wrap gap-2">
                                 <button
-                                  onClick={() => handleConfirm(sub.subscriptionId)}
-                                  disabled={confirmMutation.isPending}
-                                  className="text-xs px-2 py-1 bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 rounded transition-colors disabled:opacity-50"
+                                  onClick={() => handleBuildDeepLink(sub)}
+                                  className="text-xs px-2 py-1 bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 rounded transition-colors"
                                 >
-                                  Confirm
+                                  Build Link
                                 </button>
-                              </td>
-                            )}
+                                {isAuthenticated && (
+                                  <button
+                                    onClick={() => handleConfirm(sub.subscriptionId)}
+                                    disabled={confirmMutation.isPending}
+                                    className="text-xs px-2 py-1 bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 rounded transition-colors disabled:opacity-50"
+                                  >
+                                    Confirm
+                                  </button>
+                                )}
+                              </div>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -247,7 +350,7 @@ export function ServiceAdmin() {
                 <LoadingSpinner />
               ) : payments && payments.length > 0 ? (
                 <>
-                  <PaymentTable payments={payments} />
+                  <PaymentTable payments={payments} tokenLabelBySubscriptionId={paymentTokenLabelBySubscriptionId} />
                   <div className="flex justify-between items-center mt-4">
                     <button
                       onClick={() => setPayPrev(undefined)}
@@ -276,6 +379,9 @@ export function ServiceAdmin() {
           {activeTab === 'revenue' && (
             <section>
               <h3 className="text-lg font-semibold text-slate-200 mb-4">Daily Revenue (Last 30 Days)</h3>
+              <p className="text-sm text-slate-500 mb-4">
+                Revenue is recorded when a payment settles with an <span className="font-mono">Ok</span> result. This view aggregates successful payments for the service across tokens and is bucketed by service and optional product, not by token.
+              </p>
               {revenueLoading ? (
                 <LoadingSpinner />
               ) : revenueData ? (

@@ -1,8 +1,11 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useTransactionBlocks, type BlockEntry } from '../hooks/useTransactionBlocks';
+import { useTokenInfo } from '../hooks/useTokenInfo';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { PaginationBar } from '../components/PaginationBar';
+import { TokenPrincipalDisplay } from '../components/TokenPrincipalDisplay';
 import { CONFIG } from '../config';
+import { safeStringify } from '../utils/safeStringify';
 
 /* ── Value helpers ──────────────────────────── */
 
@@ -86,7 +89,7 @@ function valueToString(v: unknown): string {
   if ('Blob' in node) return '[blob]';
   if ('Array' in node) return `[${(node as { Array: unknown[] }).Array.length} items]`;
   if ('Map' in node) return `{${(node as { Map: Array<[string, unknown]> }).Map.length} fields}`;
-  return JSON.stringify(v);
+  return safeStringify(v);
 }
 
 /* ── Pretty labels for known fields ─────────── */
@@ -161,7 +164,17 @@ const BLOCK_TYPE_BADGES: Record<string, { label: string; color: string }> = {
 
 /* ── Recursive detail renderer ──────────────── */
 
-function DetailValue({ value, depth = 0 }: { value: unknown; depth?: number }) {
+function DetailValue({
+  value,
+  depth = 0,
+  fieldKey,
+  tokenSymbolByCanister,
+}: {
+  value: unknown;
+  depth?: number;
+  fieldKey?: string;
+  tokenSymbolByCanister: Record<string, string>;
+}) {
   if (!value || typeof value !== 'object') return <span>{String(value ?? '—')}</span>;
 
   const node = value as ValueNode;
@@ -175,7 +188,18 @@ function DetailValue({ value, depth = 0 }: { value: unknown; depth?: number }) {
     return <span className="font-mono">{n.toString()}</span>;
   }
   if ('Int' in node) return <span className="font-mono">{(node as { Int: bigint }).Int.toString()}</span>;
-  if ('Text' in node) return <span className="text-slate-200">{(node as { Text: string }).Text}</span>;
+  if ('Text' in node) {
+    const text = (node as { Text: string }).Text;
+    if ((fieldKey === 'tok' || fieldKey === 'tokenCanister') && text.length > 0) {
+      return (
+        <TokenPrincipalDisplay
+          principal={text}
+          symbol={tokenSymbolByCanister[text]}
+        />
+      );
+    }
+    return <span className="text-slate-200">{text}</span>;
+  }
   if ('Blob' in node) {
     const blob = (node as { Blob: Uint8Array | number[] }).Blob;
     const hex = Array.from(blob).map(b => b.toString(16).padStart(2, '0')).join('');
@@ -188,7 +212,7 @@ function DetailValue({ value, depth = 0 }: { value: unknown; depth?: number }) {
         {node.Map.map(([k, v]) => (
           <div key={k} className="flex gap-2 py-0.5 text-xs">
             <span className="text-slate-500 shrink-0 min-w-[100px]">{prettyLabel(k)}:</span>
-            <DetailValue value={v} depth={depth + 1} />
+            <DetailValue value={v} depth={depth + 1} fieldKey={k} tokenSymbolByCanister={tokenSymbolByCanister} />
           </div>
         ))}
       </div>
@@ -203,7 +227,7 @@ function DetailValue({ value, depth = 0 }: { value: unknown; depth?: number }) {
         <div className="ml-4 border-l border-slate-700 pl-3">
           {arr.map((item, i) => (
             <div key={i} className="py-0.5 text-xs">
-              <DetailValue value={item} depth={depth + 1} />
+              <DetailValue value={item} depth={depth + 1} tokenSymbolByCanister={tokenSymbolByCanister} />
             </div>
           ))}
         </div>
@@ -217,13 +241,14 @@ function DetailValue({ value, depth = 0 }: { value: unknown; depth?: number }) {
 
 /* ── Transaction Row ────────────────────────── */
 
-function TransactionRow({ entry }: { entry: BlockEntry }) {
+function TransactionRow({ entry, tokenSymbolByCanister }: { entry: BlockEntry; tokenSymbolByCanister: Record<string, string> }) {
   const [expanded, setExpanded] = useState(false);
   const block = entry.block;
   const blockType = extractBlockType(block);
   const ts = extractMapValue(block, 'ts') ?? extractMapValue(block, 'tx', 'ts');
   const amount = extractMapValue(block, 'tx', 'amt') ?? extractMapValue(block, 'tx', 'amount');
   const subId = extractMapValue(block, 'tx', 'sid') ?? extractMapValue(block, 'tx', 'subscriptionId');
+  const tokenCanister = extractMapValue(block, 'tx', 'tok') ?? extractMapValue(block, 'tx', 'tokenCanister');
   const badge = BLOCK_TYPE_BADGES[blockType];
 
   // Get the tx node for the detail view
@@ -246,6 +271,9 @@ function TransactionRow({ entry }: { entry: BlockEntry }) {
             <span className="text-slate-300">{blockType}</span>
           )}
         </td>
+        <td className="py-2 px-3 text-slate-300 text-sm">
+          {tokenCanister ? (tokenSymbolByCanister[tokenCanister] ?? tokenCanister) : '—'}
+        </td>
         <td className="py-2 px-3 text-slate-300 text-right font-mono">{amount ?? '—'}</td>
         <td className="py-2 px-3 text-slate-400 text-xs">{formatTimestamp(ts)}</td>
         <td className="py-2 px-3 text-slate-400 font-mono text-xs">{subId ? `#${subId}` : '—'}</td>
@@ -264,7 +292,7 @@ function TransactionRow({ entry }: { entry: BlockEntry }) {
                   {topMap.map(([k, v]) => (
                     <div key={k} className="flex gap-2 py-0.5 text-xs">
                       <span className="text-slate-500 shrink-0 min-w-[100px]">{prettyLabel(k)}:</span>
-                      <DetailValue value={v} />
+                      <DetailValue value={v} fieldKey={k} tokenSymbolByCanister={tokenSymbolByCanister} />
                     </div>
                   ))}
                 </div>
@@ -276,7 +304,7 @@ function TransactionRow({ entry }: { entry: BlockEntry }) {
                   {(txNode as { Map: Array<[string, unknown]> }).Map.map(([k, v]) => (
                     <div key={k} className="flex gap-2 py-0.5 text-xs">
                       <span className="text-slate-500 shrink-0 min-w-[100px]">{prettyLabel(k)}:</span>
-                      <DetailValue value={v} />
+                      <DetailValue value={v} fieldKey={k} tokenSymbolByCanister={tokenSymbolByCanister} />
                     </div>
                   ))}
                 </div>
@@ -292,6 +320,12 @@ function TransactionRow({ entry }: { entry: BlockEntry }) {
 export function Transactions() {
   const [page, setPage] = useState(0);
   const { data, isPending, isError } = useTransactionBlocks(page);
+  const { data: supportedTokens } = useTokenInfo();
+
+  const tokenSymbolByCanister = useMemo(
+    () => Object.fromEntries((supportedTokens ?? []).map((token) => [token.tokenCanister.toText(), token.tokenSymbol])),
+    [supportedTokens],
+  );
 
   const totalPages = data
     ? Math.ceil(Number(data.logLength) / CONFIG.TRANSACTIONS_PAGE_SIZE)
@@ -319,6 +353,7 @@ export function Transactions() {
                 <tr className="border-b border-slate-700 text-slate-400 text-sm">
                   <th className="py-2 px-3">Block</th>
                   <th className="py-2 px-3">Type</th>
+                  <th className="py-2 px-3">Token</th>
                   <th className="py-2 px-3 text-right">Amount</th>
                   <th className="py-2 px-3">Time</th>
                   <th className="py-2 px-3">Sub ID</th>
@@ -327,7 +362,7 @@ export function Transactions() {
               </thead>
               <tbody>
                 {data.blocks.map((entry) => (
-                  <TransactionRow key={String(entry.id)} entry={entry} />
+                  <TransactionRow key={String(entry.id)} entry={entry} tokenSymbolByCanister={tokenSymbolByCanister} />
                 ))}
               </tbody>
             </table>

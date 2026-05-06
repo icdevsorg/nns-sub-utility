@@ -12,6 +12,7 @@ const OPERATIONS: { value: Operation; label: string; description: string }[] = [
 ];
 
 const CANISTER_ID = 'hl3xq-uiaaa-aaaar-qbxqa-cai';
+const DFX_PREFIX = `dfx canister --network ic call ${CANISTER_ID}`;
 
 interface DfxCommandBuilderProps {
   servicePrincipal: string;
@@ -27,28 +28,28 @@ export function DfxCommandBuilder({ servicePrincipal }: DfxCommandBuilderProps) 
   const command = useMemo(() => {
     switch (operation) {
       case 'get_service_subscriptions':
-        return `dfx canister call ${CANISTER_ID} icrc79_get_service_subscriptions '(principal "${servicePrincipal}", opt record { status = null; subscriptions = null; products = null }, null, opt 20)'`;
+        return `${DFX_PREFIX} icrc79_get_service_subscriptions '(principal "${servicePrincipal}", opt record { status = null; subscriptions = null; products = null }, null, opt 20)'`;
 
       case 'get_service_payments':
-        return `dfx canister call ${CANISTER_ID} icrc79_get_service_payments '(principal "${servicePrincipal}", opt record { status = null; subscriptions = null; products = null }, null, opt 20)'`;
+        return `${DFX_PREFIX} icrc79_get_service_payments '(principal "${servicePrincipal}", opt record { status = null; subscriptions = null; products = null }, null, opt 20)'`;
 
       case 'get_service_notifications':
-        return `dfx canister call ${CANISTER_ID} icrc79_get_service_notifications '(principal "${servicePrincipal}", null, opt 20)'`;
+        return `${DFX_PREFIX} icrc79_get_service_notifications '(principal "${servicePrincipal}", null, opt 20)'`;
 
       case 'confirm_subscription':
         return subscriptionId
-          ? `dfx canister call ${CANISTER_ID} icrc79_confirm_subscription '(vec { record { subscriptionId = ${subscriptionId} : nat; checkRate = null } })'`
-          : `dfx canister call ${CANISTER_ID} icrc79_confirm_subscription '(vec { record { subscriptionId = <ID> : nat; checkRate = null } })'`;
+          ? `${DFX_PREFIX} icrc79_confirm_subscription '(vec { record { subscriptionId = ${subscriptionId} : nat; checkRate = null } })'`
+          : `${DFX_PREFIX} icrc79_confirm_subscription '(vec { record { subscriptionId = <ID> : nat; checkRate = null } })'`;
 
       case 'pause_subscription':
         return subscriptionId
-          ? `dfx canister call ${CANISTER_ID} icrc79_pause_subscription '(vec { record { subscriptionId = ${subscriptionId} : nat; active = ${active}; reason = "${reason || 'Paused via CLI'}" } })'`
-          : `dfx canister call ${CANISTER_ID} icrc79_pause_subscription '(vec { record { subscriptionId = <ID> : nat; active = ${active}; reason = "${reason || 'Paused via CLI'}" } })'`;
+          ? `${DFX_PREFIX} icrc79_pause_subscription '(vec { record { subscriptionId = ${subscriptionId} : nat; active = ${active}; reason = "${reason || 'Paused via CLI'}" } })'`
+          : `${DFX_PREFIX} icrc79_pause_subscription '(vec { record { subscriptionId = <ID> : nat; active = ${active}; reason = "${reason || 'Paused via CLI'}" } })'`;
 
       case 'cancel_subscription':
         return subscriptionId
-          ? `dfx canister call ${CANISTER_ID} icrc79_cancel_subscription '(vec { record { subscriptionId = ${subscriptionId} : nat; reason = "${reason || 'Cancelled via CLI'}" } })'`
-          : `dfx canister call ${CANISTER_ID} icrc79_cancel_subscription '(vec { record { subscriptionId = <ID> : nat; reason = "${reason || 'Cancelled via CLI'}" } })'`;
+          ? `${DFX_PREFIX} icrc79_cancel_subscription '(vec { record { subscriptionId = ${subscriptionId} : nat; reason = "${reason || 'Cancelled via CLI'}" } })'`
+          : `${DFX_PREFIX} icrc79_cancel_subscription '(vec { record { subscriptionId = <ID> : nat; reason = "${reason || 'Cancelled via CLI'}" } })'`;
     }
   }, [operation, servicePrincipal, subscriptionId, reason, active]);
 
@@ -153,7 +154,7 @@ export function DfxCommandBuilder({ servicePrincipal }: DfxCommandBuilderProps) 
           </button>
         </div>
         <p className="text-xs text-slate-500 mt-2">
-          Run this with <code className="text-slate-400">--network ic</code> to target mainnet.
+          These commands target mainnet by default with <code className="text-slate-400">--network ic</code>.
         </p>
       </div>
     </div>

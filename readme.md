@@ -10,9 +10,21 @@ The Subscription Service allows you to manage periodic payment requests on the I
 
 ## Implementation
 
-This Implementation utilizes Pan Industrial's ICRC79-mo library to implement the ICRC-79 standard. Please see that project for underlying details of how the subscription service works.
+This Implementation utilizes ICDevs.orgs's ICRC79-mo library to implement the ICRC-79 standard. Please see that project for underlying details of how the subscription service works.
 
 ## Getting Started
+
+### Frontend E2E Testing
+
+The Sub_utility browser suite lives under `test-infra/e2e/subs` and can be run with:
+
+```bash
+npm --prefix test-infra run test:subs
+```
+
+The Playwright harness does not run the frontend in Vite dev mode. It builds a production bundle with `vite build` and serves it with `vite preview` against PocketIC. Because of that, browser test authentication cannot rely on `import.meta.env.DEV`.
+
+For authenticated E2E specs, the harness enables `VITE_ENABLE_TEST_IDENTITY=true` at build time and tests inject a deterministic identity with `setupTestAuth(...)` before navigation. If a future auth-gated browser test starts showing the anonymous auth guard unexpectedly, verify that the test build still enables this flag.
 
 ### Candid
 

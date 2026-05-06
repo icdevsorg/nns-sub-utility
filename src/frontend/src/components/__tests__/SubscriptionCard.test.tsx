@@ -126,4 +126,14 @@ describe('SubscriptionCard', () => {
     );
     expect(screen.getByText('42')).toBeInTheDocument();
   });
+
+  it('renders the token symbol while preserving the copyable principal', () => {
+    render(
+      <MemoryRouter>
+        <SubscriptionCard subscription={mockSubscription() as any} tokenSymbol="ICP" />
+      </MemoryRouter>,
+    );
+    expect(screen.getByText('ICP')).toBeInTheDocument();
+    expect(screen.getByTitle('ryjl3-tyaaa-aaaaa-aaaba-cai')).toBeInTheDocument();
+  });
 });

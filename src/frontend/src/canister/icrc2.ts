@@ -1,7 +1,11 @@
 import { IDL } from '@dfinity/candid';
 import { Actor, type ActorSubclass, type Identity } from '@dfinity/agent';
 import { createAuthenticatedAgent, getAnonymousAgent } from '../agent';
+import { CONFIG } from '../config';
+import { idlFactory as icdvTokenIdlFactory } from '../../../../../ICDevsToken/src/declarations/token/token.did.js';
 import type { Principal } from '@dfinity/principal';
+
+const ICDV_TOKEN_CANISTER_ID = 'agtsn-xyaaa-aaaag-ak3kq-cai';
 
 /* ── Minimal ICRC-1 / ICRC-2 IDL ─────────────────────────── */
 
@@ -71,6 +75,14 @@ export const icrc2IdlFactory: IDL.InterfaceFactory = ({ IDL: _IDL }) => {
   });
 };
 
+export function resolveTokenIdlFactory(canisterId: string): IDL.InterfaceFactory {
+  if (canisterId === ICDV_TOKEN_CANISTER_ID) {
+    return icdvTokenIdlFactory as unknown as IDL.InterfaceFactory;
+  }
+
+  return icrc2IdlFactory;
+}
+
 /* ── Service interface (TS) ──────────────────────────────── */
 
 export interface ICRC2Account {
@@ -113,17 +125,27 @@ export type ICRC2Actor = ActorSubclass<ICRC2Service>;
 
 export async function getTokenActor(canisterId: string): Promise<ICRC2Actor> {
   const agent = await getAnonymousAgent();
-  return Actor.createActor<ICRC2Service>(icrc2IdlFactory, { agent, canisterId });
+  return Actor.createActor<ICRC2Service>(resolveTokenIdlFactory(canisterId), { agent, canisterId });
 }
 
 export async function getAuthenticatedTokenActor(canisterId: string, identity: Identity): Promise<ICRC2Actor> {
   const agent = await createAuthenticatedAgent(identity);
-  return Actor.createActor<ICRC2Service>(icrc2IdlFactory, { agent, canisterId });
+  return Actor.createActor<ICRC2Service>(resolveTokenIdlFactory(canisterId), { agent, canisterId });
 }
 
 export async function getPlugTokenActor(canisterId: string): Promise<ICRC2Actor> {
-  return (window as any).ic.plug.createActor({
+  const plug = (window as any).ic?.plug;
+  if (!plug) {
+    throw new Error('Plug wallet is not available');
+  }
+
+  await plug.requestConnect({
+    whitelist: [CONFIG.SUBS_CANISTER_ID, canisterId],
+    host: CONFIG.IC_HOST,
+  });
+
+  return plug.createActor({
     canisterId,
-    interfaceFactory: icrc2IdlFactory,
+    interfaceFactory: resolveTokenIdlFactory(canisterId),
   });
 }

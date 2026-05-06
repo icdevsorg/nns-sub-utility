@@ -1,10 +1,13 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useAuth } from '../auth/AuthProvider';
 import { useUserPayments } from '../hooks/useUserPayments';
+import { useUserSubscriptions } from '../hooks/useUserSubscriptions';
+import { useTokenInfo } from '../hooks/useTokenInfo';
 import { AuthGuard } from '../components/AuthGuard';
 import { PaymentTable } from '../components/PaymentTable';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { CONFIG } from '../config';
+import { buildPaymentTokenLabelBySubscriptionId } from '../utils/paymentTokens';
 
 function MyPaymentsInner() {
   const { identity, authMethod } = useAuth();
@@ -16,6 +19,24 @@ function MyPaymentsInner() {
     authMethod,
     prev,
   });
+  const { data: supportedTokens } = useTokenInfo();
+
+  const paymentSubscriptionIds = useMemo(
+    () => Array.from(new Set((payments ?? []).map((payment) => payment.subscriptionId))),
+    [payments],
+  );
+
+  const { data: paymentSubscriptions } = useUserSubscriptions({
+    identity,
+    authMethod,
+    subscriptionIds: paymentSubscriptionIds,
+    take: paymentSubscriptionIds.length > 0 ? BigInt(paymentSubscriptionIds.length) : undefined,
+  });
+
+  const tokenLabelBySubscriptionId = useMemo(
+    () => buildPaymentTokenLabelBySubscriptionId(paymentSubscriptions ?? [], supportedTokens),
+    [paymentSubscriptions, supportedTokens],
+  );
 
   return (
     <div>
@@ -25,7 +46,7 @@ function MyPaymentsInner() {
       {isPending && <LoadingSpinner />}
       {isError && <p className="text-red-400">Failed to load payments.</p>}
 
-      {payments && <PaymentTable payments={payments} />}
+      {payments && <PaymentTable payments={payments} tokenLabelBySubscriptionId={tokenLabelBySubscriptionId} />}
 
       {/* Pagination */}
       {payments && (

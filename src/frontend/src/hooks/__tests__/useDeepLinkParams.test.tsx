@@ -48,13 +48,14 @@ describe('useDeepLinkParams', () => {
 
   it('parses multiple params at once', () => {
     const { result } = renderHook(() => useDeepLinkParams(), {
-      wrapper: wrapper(['/subscribe?token=abc&service=def&amount=100&interval=Daily&product=42']),
+      wrapper: wrapper(['/subscribe?token=abc&service=def&amount=100&interval=Days&intervalValue=7&product=42']),
     });
     expect(result.current).toEqual({
       token: 'abc',
       service: 'def',
       amount: '100',
-      interval: 'Daily',
+      interval: 'Days',
+      intervalValue: '7',
       product: '42',
     });
   });

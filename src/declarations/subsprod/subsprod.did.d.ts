@@ -151,6 +151,7 @@ export interface LeaderboardEntry {
   'service' : Principal,
   'totalRevenue' : bigint,
   'activeSubscriptions' : bigint,
+  'tokenCanister' : Principal,
 }
 export type PauseError = { 'InvalidStatus' : SubStatus } |
   { 'NotFound' : null } |
@@ -349,10 +350,19 @@ export interface Subs {
     [Principal, [] | [bigint], bigint, bigint],
     Array<DailyRevenueEntry>
   >,
+  'icrc79_service_daily_revenue_update' : ActorMethod<
+    [Principal, [] | [bigint], bigint, bigint],
+    Array<DailyRevenueEntry>
+  >,
   'icrc79_service_leaderboard' : ActorMethod<
     [[] | [bigint], [] | [bigint]],
     Array<LeaderboardEntry>
   >,
+  'icrc79_service_leaderboard_update' : ActorMethod<
+    [[] | [bigint], [] | [bigint]],
+    Array<LeaderboardEntry>
+  >,
+  'icrc79_set_min_analytics_cycles' : ActorMethod<[bigint], undefined>,
   'icrc79_subscribe' : ActorMethod<[SubscriptionRequest], SubscriptionResult>,
   'icrc79_subscribe_0_0_1' : ActorMethod<
     [SubscriptionRequest],

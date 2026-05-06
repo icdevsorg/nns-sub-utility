@@ -1,7 +1,9 @@
+import { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import { useSubscriptionDetail } from '../hooks/useSubscriptionDetail';
 import { useUserPayments } from '../hooks/useUserPayments';
+import { useTokenInfo } from '../hooks/useTokenInfo';
 import { useCancelSubscription } from '../hooks/useCancelSubscription';
 import { usePauseSubscription } from '../hooks/usePauseSubscription';
 import { AuthGuard } from '../components/AuthGuard';
@@ -10,6 +12,7 @@ import { IntervalLabel } from '../components/IntervalLabel';
 import { PrincipalDisplay } from '../components/PrincipalDisplay';
 import { PaymentTable } from '../components/PaymentTable';
 import { LoadingSpinner } from '../components/LoadingSpinner';
+import { buildPaymentTokenLabelBySubscriptionId } from '../utils/paymentTokens';
 
 function formatAmount(amount: bigint, decimals = 8): string {
   const whole = amount / BigInt(10 ** decimals);
@@ -43,6 +46,7 @@ function SubscriptionDetailInner() {
     identity,
     authMethod,
   });
+  const { data: supportedTokens } = useTokenInfo();
 
   const cancelMutation = useCancelSubscription();
   const pauseMutation = usePauseSubscription();
@@ -61,6 +65,10 @@ function SubscriptionDetailInner() {
   // Filter payments for this subscription
   const subPayments = (payments ?? []).filter(
     (p) => p.subscriptionId === subscriptionId,
+  );
+  const tokenLabelBySubscriptionId = useMemo(
+    () => buildPaymentTokenLabelBySubscriptionId([sub], supportedTokens),
+    [sub, supportedTokens],
   );
 
   const handleCancel = () => {
@@ -189,7 +197,7 @@ function SubscriptionDetailInner() {
 
       {/* Payment history */}
       <h3 className="text-xl font-semibold text-slate-200 mb-4">Payment History</h3>
-      {paymentsLoading ? <LoadingSpinner /> : <PaymentTable payments={subPayments} />}
+      {paymentsLoading ? <LoadingSpinner /> : <PaymentTable payments={subPayments} tokenLabelBySubscriptionId={tokenLabelBySubscriptionId} />}
     </div>
   );
 }
